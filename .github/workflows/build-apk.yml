@@ -1,0 +1,45 @@
+name: Build APK (آپدیت‌یار)
+
+# این workflow فایل APK اپلیکیشن را به‌صورت خودکار روی سرورهای گیت‌هاب می‌سازد
+# بدون نیاز به نصب Android Studio روی سیستم شما!
+
+on:
+  # اجرای دستی از تب Actions (دکمه Run workflow)
+  workflow_dispatch:
+  # اجرای خودکار وقتی فایل‌های اندروید تغییر کنند
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    name: ساخت APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: دریافت کد از مخزن
+        uses: actions/checkout@v4
+
+      - name: نصب Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: دسترسی اجرایی به gradlew
+        run: chmod +x android/gradlew
+
+      - name: ساخت APK (Debug - قابل نصب روی هر گوشی)
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: آپلود فایل APK به عنوان خروجی (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: updatayar-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 90
+          if-no-files-found: error
