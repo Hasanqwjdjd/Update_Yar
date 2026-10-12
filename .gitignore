@@ -42,7 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 # sandbox / platform files (not part of the app)
-local-*
 .claude
 .z-ai-config
 .zscripts/
