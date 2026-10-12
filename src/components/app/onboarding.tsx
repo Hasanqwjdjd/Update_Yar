@@ -73,7 +73,7 @@ export function Onboarding({ onFinish }: { onFinish: () => void }) {
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-bold text-primary">
               <ShieldCheck className="size-3.5" />
-              بررسی امنیت فایل قبل از نصب
+              خواندن مستقیم نسخه‌ها از حافظه‌ی گوشی
             </div>
           </div>
         )}

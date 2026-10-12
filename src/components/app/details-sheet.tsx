@@ -3,7 +3,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppIcon } from './app-icon'
 import { SourceBadge } from './source-badge'
-import { ShieldCheck, Package, ArrowUpCircle, History as HistoryIcon } from 'lucide-react'
+import { ShieldCheck, Package, ArrowUpCircle, History as HistoryIcon, Play } from 'lucide-react'
 import { faDigits, faSize } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
 import type { InstalledApp } from '@/lib/types'
@@ -15,7 +15,8 @@ export function DetailsSheet({
   app: InstalledApp | null
   onOpenChange: (v: boolean) => void
 }) {
-  const startDownload = useAppStore((s) => s.startDownload)
+  const updateApp = useAppStore((s) => s.updateApp)
+  const launchApp = useAppStore((s) => s.launchApp)
   const setView = useAppStore((s) => s.setView)
 
   if (!app) return null
@@ -29,7 +30,7 @@ export function DetailsSheet({
         </SheetHeader>
         <div className="max-h-[62vh] overflow-y-auto px-5 pb-4">
           <div className="flex items-center gap-3">
-            <AppIcon type={app.iconType} color={app.iconColor} size="lg" />
+            <AppIcon type={app.iconType} color={app.iconColor} size="lg" icon={app.iconBase64} />
             <div className="min-w-0 flex-1">
               <p className="text-lg font-black">{app.name}</p>
               <p className="text-[11px] text-muted-foreground">نسخه فعلی: {faDigits(app.version)}</p>
@@ -51,47 +52,52 @@ export function DetailsSheet({
                 <ArrowUpCircle className="size-5 shrink-0 text-primary" />
                 <p className="text-[12px] leading-5">
                   نسخه جدید <b className="num">{faDigits(app.newVersion!)}</b> در دسترس است
-                  <span className="text-muted-foreground"> — حجم {faSize(app.sizeMB * 0.9)}</span>
+                  {app.sizeMB > 0 && (
+                    <span className="text-muted-foreground"> — حجم فعلی {faSize(app.sizeMB)}</span>
+                  )}
                 </p>
               </div>
-              <div className="mt-4">
-                <p className="mb-2 text-[13px] font-bold">تغییرات این نسخه</p>
-                <ul className="space-y-1.5">
-                  {app.changelog.split('\n').filter(Boolean).map((line, i) => (
-                    <li key={i} className="flex items-start gap-2 text-[12px] leading-6 text-muted-foreground">
-                      <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {app.changelog && (
+                <div className="mt-4">
+                  <p className="mb-2 text-[13px] font-bold">تغییرات این نسخه</p>
+                  <ul className="space-y-1.5">
+                    {app.changelog.split('\n').filter(Boolean).map((line, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[12px] leading-6 text-muted-foreground">
+                        <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </>
           ) : (
             <div className="mt-4 flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/8 p-3">
               <ShieldCheck className="size-5 shrink-0 text-primary" />
-              <p className="text-[12px]">این برنامه به‌روز است — آخرین بررسی: به‌تازگی انجام شد</p>
+              <p className="text-[12px]">این برنامه به‌روز است — نسخه نصب‌شده از خود گوشی خوانده شد</p>
             </div>
           )}
 
           <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
             <ShieldCheck className="size-4 text-primary" />
-            امضای دیجیتال با نسخه قبلی مطابقت داده شد — فایل جعلی نیست
+            اطلاعات نسخه مستقیماً از حافظه‌ی خود گوشی خوانده شده است
           </div>
 
           <div className="mt-4 flex gap-2">
             {hasUpdate ? (
               <button
-                onClick={() => { startDownload(app); onOpenChange(false); setView('updates') }}
+                onClick={() => { void updateApp(app); onOpenChange(false) }}
                 className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-black text-primary-foreground active:scale-[0.98]"
               >
                 <ArrowUpCircle className="size-5" />
-                به‌روزرسانی به نسخه جدید ({faDigits(app.newVersion!)})
+                به‌روزرسانی در فروشگاه ({faDigits(app.newVersion!)})
               </button>
             ) : (
               <button
-                onClick={() => { onOpenChange(false); }}
+                onClick={() => { void launchApp(app); onOpenChange(false) }}
                 className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl bg-foreground/10 text-[14px] font-black active:scale-[0.98]"
               >
+                <Play className="size-5" />
                 باز کردن برنامه
               </button>
             )}

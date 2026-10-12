@@ -17,7 +17,8 @@ import { PremiumSheet } from '@/components/app/premium-sheet'
 import { SupportSheet } from '@/components/app/support-sheet'
 import { AdBanner } from '@/components/app/ad-banner'
 import { faDigits, faNumber } from '@/lib/persian'
-import { listAds, scanUpdates } from '@/lib/local-db'
+import { listAds, buildAppsFromNative, saveAppsCache, demoApps } from '@/lib/local-db'
+import { InstalledApps, isNativeApp } from '@/lib/native'
 import type { AdItemT, GithubRepoItem, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -73,17 +74,26 @@ export default function Page() {
     if (useAppStore.getState().scanning) return
     setScanning(true)
     try {
-      // کمی تأخیر برای حس واقعی «بررسی» رادار
-      await new Promise((r) => setTimeout(r, 1400))
-      const data = scanUpdates()
-      applyScanResult(data.apps, data.history)
-      showToast(
-        data.discovered > 0
-          ? `${faDigits(data.discovered)} به‌روزرسانی جدید پیدا شد!`
-          : 'همه برنامه‌ها به‌روز هستند ✓'
-      )
+      if (isNativeApp()) {
+        // اسکن واقعی: خواندن برنامه‌های نصب‌شده از خود گوشی
+        const { apps: natives } = await InstalledApps.listInstalledApps()
+        const apps = buildAppsFromNative(natives)
+        saveAppsCache(apps)
+        applyScanResult(apps)
+        const updateCount = apps.filter((a) => a.newVersion).length
+        showToast(
+          updateCount > 0
+            ? `${faDigits(apps.length)} برنامه بررسی شد — ${faDigits(updateCount)} به‌روزرسانی موجود است`
+            : `${faDigits(apps.length)} برنامه بررسی شد — همه به‌روز هستند ✓`
+        )
+      } else {
+        // پیش‌نمایش وب — داده نمایشی (روی گوشی، اسکن واقعی انجام می‌شود)
+        await new Promise((r) => setTimeout(r, 900))
+        applyScanResult(demoApps())
+        showToast('پیش‌نمایش وب — نسخه اندروید، گوشی واقعی شما را اسکن می‌کند')
+      }
     } catch {
-      showToast('بررسی آپدیت‌ها ناموفق بود')
+      showToast('خواندن برنامه‌های نصب‌شده ناموفق بود')
     } finally {
       setScanning(false)
     }
@@ -148,8 +158,8 @@ export default function Page() {
               <span className="radar-ring absolute inset-0 rounded-full border-2 border-primary/30" style={{ animationDelay: '1s' }} />
               <Radar className="size-12 text-primary" />
             </div>
-            <p className="text-[15px] font-black">در حال بررسی منابع...</p>
-            <p className="text-[12px] text-muted-foreground">بازار • مایکت • گوگل‌پلی • گیت‌هاب</p>
+            <p className="text-[15px] font-black">در حال خواندن برنامه‌های نصب‌شده...</p>
+            <p className="text-[12px] text-muted-foreground">حافظه گوشی • کاتالوگ نسخه‌ها • گیت‌هاب</p>
           </div>
         </div>
       )}

@@ -13,6 +13,8 @@ export interface InstalledApp {
   sizeMB: number
   iconColor: string
   iconType: string
+  /** آیکون واقعی برنامه (base64 PNG) — فقط روی گوشی از پلاگین نیتیو می‌آید */
+  iconBase64?: string | null
   source: AppSource
   category: string
   developer: string
@@ -90,20 +92,6 @@ export interface SettingsT {
   premiumPlan: string | null
   supporterTier: string | null
   onboarded: boolean
-}
-
-export interface DownloadTask {
-  appId: string
-  name: string
-  iconColor: string
-  iconType: string
-  source: string
-  sizeMB: number
-  progress: number // 0..100
-  speedMB: number
-  fromVersion: string
-  toVersion: string
-  status: 'downloading' | 'paused' | 'queued'
 }
 
 export const SOURCE_LABELS: Record<AppSource, string> = {

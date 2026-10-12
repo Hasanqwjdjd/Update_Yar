@@ -6,7 +6,7 @@ import { useAppStore } from '@/lib/store'
 import { AppIcon } from './app-icon'
 import { SourceBadge } from './source-badge'
 import { FeedAdCard } from './ad-banner'
-import { faDigits, faSize } from '@/lib/persian'
+import { faDigits } from '@/lib/persian'
 import type { AdItemT, AppSource, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -36,8 +36,9 @@ export function HomeView({
   const setSearchQuery = useAppStore((s) => s.setSearchQuery)
   const sourceFilter = useAppStore((s) => s.sourceFilter)
   const setSourceFilter = useAppStore((s) => s.setSourceFilter)
-  const startDownload = useAppStore((s) => s.startDownload)
-  const downloads = useAppStore((s) => s.downloads)
+  const updateApp = useAppStore((s) => s.updateApp)
+  const launchApp = useAppStore((s) => s.launchApp)
+  const updateAll = useAppStore((s) => s.updateAll)
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
 
@@ -45,7 +46,8 @@ export function HomeView({
 
   const filtered = useMemo(() => {
     let list = apps
-    if (sourceFilter !== 'all') list = list.filter((a) => a.source === sourceFilter)
+    if (sourceFilter === 'all') list = list.filter((a) => !a.system)
+    else list = list.filter((a) => a.source === sourceFilter)
     if (search.query.trim()) {
       const q = search.query.trim().toLowerCase()
       list = list.filter(
@@ -58,8 +60,8 @@ export function HomeView({
   const feedAds = ads.filter((a) => a.placement === 'feed')
 
   const startAll = () => {
-    apps.filter((a) => a.newVersion && !downloads[a.id]).forEach((a) => startDownload(a))
-    setView('updates')
+    const pending = apps.filter((a) => a.newVersion)
+    if (pending.length > 0) void updateAll(pending)
   }
 
   return (
@@ -193,9 +195,9 @@ export function HomeView({
             <div key={app.id}>
               <AppFeedCard
                 app={app}
-                downloading={Boolean(downloads[app.id])}
+                onUpdate={() => void updateApp(app)}
+                onLaunch={() => void launchApp(app)}
                 onOpen={() => onOpenDetails(app)}
-                onAction={() => (app.newVersion ? startDownload(app) : undefined)}
               />
               {!settings?.isPremium && feedAds.length > 0 && (idx + 1) % 5 === 0 && (
                 <div className="mt-2">
@@ -225,20 +227,20 @@ export function HomeView({
 
 function AppFeedCard({
   app,
-  downloading,
+  onUpdate,
+  onLaunch,
   onOpen,
-  onAction,
 }: {
   app: InstalledApp
-  downloading: boolean
+  onUpdate: () => void
+  onLaunch: () => void
   onOpen: () => void
-  onAction: () => void
 }) {
   const hasUpdate = Boolean(app.newVersion)
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors">
       <button onClick={onOpen} aria-label={`جزئیات ${app.name}`} className="shrink-0">
-        <AppIcon type={app.iconType} color={app.iconColor} />
+        <AppIcon type={app.iconType} color={app.iconColor} icon={app.iconBase64} />
       </button>
       <button onClick={onOpen} className="min-w-0 flex-1 text-right">
         <p className="truncate text-[14px] font-bold">{app.name}</p>
@@ -250,21 +252,16 @@ function AppFeedCard({
       </button>
       {hasUpdate ? (
         <button
-          onClick={onAction}
-          disabled={downloading}
+          onClick={onUpdate}
           aria-label={`به‌روزرسانی ${app.name}`}
-          className={cn(
-            'flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-black transition-all active:scale-95',
-            'bg-primary text-primary-foreground',
-            downloading && 'opacity-50'
-          )}
+          className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-black text-primary-foreground transition-all active:scale-95"
         >
-          {downloading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpCircle className="size-4" />}
-          {downloading ? 'در حال دانلود' : 'آپدیت'}
+          <ArrowUpCircle className="size-4" />
+          آپدیت
         </button>
       ) : (
         <button
-          onClick={onAction}
+          onClick={onLaunch}
           aria-label={`باز کردن ${app.name}`}
           className="flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted px-4 text-[13px] font-bold text-foreground/80 transition-all active:scale-95"
         >

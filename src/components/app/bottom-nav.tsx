@@ -9,14 +9,12 @@ export function BottomNav() {
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
   const apps = useAppStore((s) => s.apps)
-  const downloads = useAppStore((s) => s.downloads)
 
   const updateCount = apps.filter((a) => a.newVersion).length
-  const activeDownloads = Object.values(downloads).filter((d) => d.status !== 'paused').length
 
   const items = [
     { key: 'home' as const, label: 'خانه', icon: Home, badge: 0 },
-    { key: 'updates' as const, label: 'به‌روزرسانی‌ها', icon: RefreshCcw, badge: updateCount + activeDownloads },
+    { key: 'updates' as const, label: 'به‌روزرسانی‌ها', icon: RefreshCcw, badge: updateCount },
     { key: 'github' as const, label: 'گیت‌هاب', icon: Github, badge: 0 },
     { key: 'history' as const, label: 'تاریخچه', icon: History, badge: 0 },
     { key: 'settings' as const, label: 'تنظیمات', icon: Settings2, badge: 0 },

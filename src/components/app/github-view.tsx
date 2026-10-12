@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Github as GithubIcon, Star, GitBranch, RefreshCcw, ArrowUpCircle, Download, CheckCircle2, Loader2, ChevronLeft } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Github as GithubIcon, Star, GitBranch, RefreshCcw, ArrowUpCircle, Download, CheckCircle2, ChevronLeft } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
-import { listRepos, syncRepos } from '@/lib/local-db'
+import { listRepos, syncReposLive } from '@/lib/local-db'
+import { InstalledApps, isNativeApp } from '@/lib/native'
 import { faDigits, faNumber } from '@/lib/persian'
 import { cn } from '@/lib/utils'
 import type { GithubRepoItem } from '@/lib/types'
@@ -12,30 +13,41 @@ const LANG_COLORS: Record<string, string> = {
   Kotlin: '#A97BFF', Java: '#b07219', Dart: '#00B4AB', TypeScript: '#3178c6', 'C++': '#f34b7d',
 }
 
+/** باز کردن لینک خارجی — روی گوشی در مرورگر سیستم، در وب در تب جدید */
+async function openExternal(url: string) {
+  if (isNativeApp()) {
+    try {
+      await InstalledApps.openInStore({ packageName: 'external', store: 'github', url })
+      return
+    } catch { /* ادامه با وب */ }
+  }
+  window.open(url, '_blank')
+}
+
 export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) => void }) {
   const apps = useAppStore((s) => s.apps)
-  const startDownload = useAppStore((s) => s.startDownload)
   const showToast = useAppStore((s) => s.showToast)
   const [filter, setFilter] = useState<'explore' | 'installed' | 'updates'>('explore')
   const [syncing, setSyncing] = useState(false)
   const [repos, setRepos] = useState<GithubRepoItem[] | null>(null)
-  const [loadedOnce, setLoadedOnce] = useState(false)
 
-  // مخازن را از دیتابیس محلی می‌خوانیم (اگر هنوز لود نشده)
-  useMemo(() => {
-    if (!loadedOnce) {
-      setLoadedOnce(true)
-      setRepos(listRepos())
-    }
-  }, [loadedOnce])
+  // بارگذاری اولیه از کش + سینک زنده از گیت‌هاب
+  useEffect(() => {
+    setRepos(listRepos())
+    let cancelled = false
+    void (async () => {
+      const { repos: fresh } = await syncReposLive(useAppStore.getState().apps)
+      if (!cancelled) setRepos(fresh)
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const sync = async () => {
     setSyncing(true)
     try {
-      await new Promise((r) => setTimeout(r, 900))
-      const fresh = syncRepos()
+      const { repos: fresh, live } = await syncReposLive(useAppStore.getState().apps)
       setRepos(fresh)
-      showToast('ریلیزهای گیت‌هاب بررسی شد')
+      showToast(live ? 'داده زنده از گیت‌هاب دریافت شد ✓' : 'آفلاین — از آخرین داده ذخیره‌شده استفاده شد')
     } catch {
       showToast('بررسی ریلیزها ناموفق بود')
     } finally {
@@ -50,13 +62,10 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
     return l
   }, [repos, filter])
 
-  const updateRepoApp = (repo: GithubRepoItem) => {
-    if (!repo.appPackage) return
-    const app = apps.find((a) => a.package === repo.appPackage)
-    if (app) {
-      startDownload({ ...app, newVersion: repo.latestVersion })
-      showToast(`«${repo.fullName.split('/')[1]}» از گیت‌هاب در حال دانلود است`)
-    }
+  // اقدام واقعی: باز کردن صفحه ریلیزها در مرورگر
+  const openRepoReleases = (repo: GithubRepoItem) => {
+    void openExternal(`https://github.com/${repo.fullName}/releases/latest`)
+    showToast('صفحه ریلیزهای گیت‌هاب باز شد')
   }
 
   return (
@@ -100,8 +109,9 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
           </div>
         ) : (
           list.map((repo) => {
-            const owner = repo.fullName.split(' / ')[0] ?? repo.fullName
-            const name = repo.fullName.split(' / ')[1] ?? repo.fullName
+            const slashIdx = repo.fullName.indexOf('/')
+            const owner = slashIdx > 0 ? repo.fullName.slice(0, slashIdx) : repo.fullName
+            const name = slashIdx > 0 ? repo.fullName.slice(slashIdx + 1) : repo.fullName
             const hasUpdate = repo.installed && repo.isNew
             return (
               <div key={repo.id} className="rounded-2xl border border-border bg-card p-4">
@@ -141,11 +151,11 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
                 <div className="mt-3 flex items-center gap-2">
                   {hasUpdate ? (
                     <button
-                      onClick={() => updateRepoApp(repo)}
+                      onClick={() => openRepoReleases(repo)}
                       className="flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-[13px] font-black text-primary-foreground active:scale-[0.99]"
                     >
                       <ArrowUpCircle className="size-4" />
-                      به‌روزرسانی
+                      دریافت از گیت‌هاب
                     </button>
                   ) : repo.installed ? (
                     <button
@@ -156,10 +166,10 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
                     </button>
                   ) : (
                     <button
-                      onClick={() => showToast('نصب مخازن جدید در نسخه بعدی فعال می‌شود')}
+                      onClick={() => openRepoReleases(repo)}
                       className="flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 text-[13px] font-black text-primary active:scale-[0.99]"
                     >
-                      <Download className="size-4" /> نصب
+                      <Download className="size-4" /> صفحه ریلیز
                     </button>
                   )}
                   <button
@@ -198,14 +208,18 @@ export function RepoChangelogSheet({ repo }: { repo: GithubRepoItem | null }) {
     <div className="space-y-3">
       <p className="text-[14px] font-black">{repo.fullName}</p>
       <p className="num text-[12px] text-muted-foreground">نسخه {faDigits(repo.latestVersion)}</p>
-      <ul className="space-y-1.5">
-        {repo.changelog.split('\n').filter(Boolean).map((line, i) => (
-          <li key={i} className="flex items-start gap-2 text-[12px] leading-6 text-muted-foreground">
-            <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" />
-            {line}
-          </li>
-        ))}
-      </ul>
+      {repo.changelog ? (
+        <ul className="space-y-1.5">
+          {repo.changelog.split('\n').filter(Boolean).map((line, i) => (
+            <li key={i} className="flex items-start gap-2 text-[12px] leading-6 text-muted-foreground">
+              <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" />
+              {line.replace(/^[-*]\s*/, '')}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[12px] text-muted-foreground">چنج‌لاگی ثبت نشده — برای جزئیات صفحه ریلیز را باز کنید</p>
+      )}
     </div>
   )
 }

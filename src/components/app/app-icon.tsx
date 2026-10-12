@@ -25,31 +25,47 @@ const COLORS: Record<string, string> = {
   orange: 'from-orange-400 to-orange-600',
 }
 
+const SIZES = { sm: 'size-9 rounded-[10px]', md: 'size-11 rounded-xl', lg: 'size-16 rounded-2xl' }
+const ICON_SIZES = { sm: 'size-4', md: 'size-5', lg: 'size-7' }
+
 export function AppIcon({
   type,
   color,
   size = 'md',
   className,
+  /** آیکون واقعی برنامه (base64 PNG از پلاگین نیتیو) */
+  icon,
 }: {
   type: string
   color: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  icon?: string | null
 }) {
+  const sizes = SIZES[size]
+
+  if (icon) {
+    return (
+      <img
+        src={icon.startsWith('data:') ? icon : `data:image/png;base64,${icon}`}
+        alt=""
+        className={cn('shrink-0 bg-muted object-cover shadow-sm', sizes, className)}
+      />
+    )
+  }
+
   const Icon = ICONS[type] ?? Package
   const gradient = COLORS[color] ?? COLORS.emerald
-  const sizes = { sm: 'size-9 rounded-[10px]', md: 'size-11 rounded-xl', lg: 'size-16 rounded-2xl' }
-  const iconSizes = { sm: 'size-4', md: 'size-5', lg: 'size-7' }
   return (
     <div
       className={cn(
         'flex shrink-0 items-center justify-center bg-gradient-to-br shadow-sm',
         gradient,
-        sizes[size],
+        sizes,
         className
       )}
     >
-      <Icon className={cn('text-white', iconSizes[size])} strokeWidth={2.2} />
+      <Icon className={cn('text-white', ICON_SIZES[size])} strokeWidth={2.2} />
     </div>
   )
 }
