@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// برنامه‌های نصب‌شده روی گوشی
+model InstalledApp {
+  id             String    @id @default(cuid())
+  name           String
+  nameEn         String
+  package        String    @unique
+  version        String
+  newVersion     String?
+  changelog      String    @default("")
+  sizeMB         Float
+  iconColor      String    @default("emerald")
+  iconType       String    @default("Package")
+  source         String    @default("bazaar") // googleplay | bazaar | myket | github | system | custom
+  category       String    @default("ابزار")
+  developer      String    @default("")
+  installedAt    DateTime  @default(now())
+  lastCheck      DateTime?
+  system         Boolean   @default(false)
+  sortOrder      Int       @default(0)
+}
+
+// تاریخچه آپدیت‌ها
+model UpdateHistory {
+  id          String   @id @default(cuid())
+  appName     String
+  iconColor   String   @default("emerald")
+  iconType    String   @default("Package")
+  package     String
+  fromVersion String
+  toVersion   String
+  source      String
+  sizeMB      Float    @default(0)
+  status      String   @default("completed") // completed | failed
+  date        DateTime @default(now())
+}
+
+// مخازن گیت‌هاب
+model GithubRepo {
+  id              String   @id @default(cuid())
+  fullName        String   @unique
+  description     String   @default("")
+  latestVersion   String
+  installedVersion String?
+  stars           Int      @default(0)
+  language        String   @default("Kotlin")
+  isNew           Boolean  @default(false)
+  installed       Boolean  @default(false)
+  changelog       String   @default("")
+  appPackage      String?  // اگر نصب شده باشد
+  sortOrder       Int      @default(0)
+}
+
+// حامیان مالی
+model Supporter {
+  id        String   @id @default(cuid())
+  name      String
+  tier      String   @default("one-time") // one-time | bronze | silver | gold
+  amount    Int      @default(0)
+  message   String?
+  createdAt DateTime @default(now())
+}
+
+// تبلیغات
+model AdItem {
+  id          String  @id @default(cuid())
+  title       String
+  description String
+  ctaText     String  @default("مشاهده")
+  imageUrl    String?
+  color       String  @default("emerald")
+  link        String  @default("#")
+  placement   String  @default("feed") // feed | banner
+  active      Boolean @default(true)
+  priority    Int     @default(0)
+}
+
+// تنظیمات برنامه (تک‌ردکوردی)
+model AppSettings {
+  id                  String  @id @default("main")
+  notifications       Boolean @default(true)
+  notifyNewUpdates    Boolean @default(true)
+  notifySecurity      Boolean @default(true)
+  notifyBeta          Boolean @default(false)
+  darkTheme           Boolean @default(true)
+  accentTheme         String  @default("green") // green | purple | blue
+  syncWithSystem      Boolean @default(false)
+  scheduledTheme      String  @default("manual") // manual | auto | night
+  dataSaver           Boolean @default(false)
+  autoUpdateWifi      Boolean @default(true)
+  scheduledChecks     String  @default("daily") // off | daily | weekly
+  sourceGooglePlay    Boolean @default(true)
+  sourceBazaar        Boolean @default(true)
+  sourceMyket         Boolean @default(true)
+  sourceGithub        Boolean @default(true)
+  sourceCustom        Boolean @default(false)
+  isPremium           Boolean @default(false)
+  premiumPlan         String? // monthly | yearly | lifetime
+  supporterTier       String? // one-time | bronze | silver | gold
+  onboarded           Boolean @default(false)
+}

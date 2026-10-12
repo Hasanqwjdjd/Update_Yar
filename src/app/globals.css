@@ -1,0 +1,216 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Vazirmatn", "Vazir", Tahoma, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Vazirmatn", monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 1.1rem;
+  --background: #F4F6F8;
+  --foreground: #10151C;
+  --card: #FFFFFF;
+  --card-foreground: #10151C;
+  --popover: #FFFFFF;
+  --popover-foreground: #10151C;
+  --primary: #10B981;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E9EDF1;
+  --secondary-foreground: #17202B;
+  --muted: #E9EDF1;
+  --muted-foreground: #5D6875;
+  --accent: #E7F8F1;
+  --accent-foreground: #065F46;
+  --destructive: #E5484D;
+  --border: #DFE5EB;
+  --input: #D7DEE5;
+  --ring: #10B981;
+  --chart-1: #10B981;
+  --chart-2: #8B5CF6;
+  --chart-3: #3B82F6;
+  --chart-4: #F59E0B;
+  --chart-5: #E5484D;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #10151C;
+  --sidebar-primary: #10B981;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E9EDF1;
+  --sidebar-accent-foreground: #17202B;
+  --sidebar-border: #DFE5EB;
+  --sidebar-ring: #10B981;
+}
+
+.dark {
+  --background: #0B0F14;
+  --foreground: #E8EDF4;
+  --card: #141A22;
+  --card-foreground: #E8EDF4;
+  --popover: #141A22;
+  --popover-foreground: #E8EDF4;
+  --primary: #10B981;
+  --primary-foreground: #04110C;
+  --secondary: #1B222C;
+  --secondary-foreground: #E8EDF4;
+  --muted: #1B222C;
+  --muted-foreground: #8B95A5;
+  --accent: #12241E;
+  --accent-foreground: #6EE7B7;
+  --destructive: #F2555A;
+  --border: rgba(255, 255, 255, 0.07);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #10B981;
+  --chart-1: #10B981;
+  --chart-2: #A78BFA;
+  --chart-3: #60A5FA;
+  --chart-4: #FBBF24;
+  --chart-5: #F87171;
+  --sidebar: #141A22;
+  --sidebar-foreground: #E8EDF4;
+  --sidebar-primary: #10B981;
+  --sidebar-primary-foreground: #04110C;
+  --sidebar-accent: #1B222C;
+  --sidebar-accent-foreground: #E8EDF4;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #10B981;
+}
+
+/* ===== تم‌های رنگی ===== */
+[data-accent="green"] {
+  --primary: #10B981;
+  --ring: #10B981;
+}
+.dark[data-accent="green"] {
+  --accent: #12241E;
+  --accent-foreground: #6EE7B7;
+}
+[data-accent="green"]:not(.dark) {
+  --accent: #E7F8F1;
+  --accent-foreground: #065F46;
+}
+
+[data-accent="purple"] {
+  --primary: #8B5CF6;
+  --ring: #8B5CF6;
+}
+.dark[data-accent="purple"] {
+  --accent: #1F1A2E;
+  --accent-foreground: #C4B5FD;
+}
+[data-accent="purple"]:not(.dark) {
+  --accent: #F1EBFE;
+  --accent-foreground: #6D28D9;
+}
+
+[data-accent="blue"] {
+  --primary: #3B82F6;
+  --ring: #3B82F6;
+}
+.dark[data-accent="blue"] {
+  --accent: #13202F;
+  --accent-foreground: #93C5FD;
+}
+[data-accent="blue"]:not(.dark) {
+  --accent: #E8F0FE;
+  --accent-foreground: #1D4ED8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 140, 155, 0.35) transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Vazirmatn", "Vazir", Tahoma, ui-sans-serif, system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, a {
+    touch-action: manipulation;
+  }
+}
+
+/* اسکرول‌بار سفارشی */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 140, 155, 0.3);
+  border-radius: 9999px;
+}
+
+/* اطمینان از نمایش اعداد فارسی و لاتین در یک خط */
+.num {
+  font-feature-settings: "tnum";
+}
+
+/* انیمیشن پالس اسکن */
+@keyframes scan-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.94); }
+}
+.scan-pulse {
+  animation: scan-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes radar {
+  from { transform: scale(0.4); opacity: 0.8; }
+  to { transform: scale(2.2); opacity: 0; }
+}
+.radar-ring {
+  animation: radar 1.6s ease-out infinite;
+}
+
+/* مخفی کردن فلش ورودی عدد */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

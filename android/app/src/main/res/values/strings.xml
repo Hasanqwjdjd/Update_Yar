@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">آپدیت‌یار</string>
+    <string name="title_activity_main">آپدیت‌یار</string>
+    <string name="package_name">com.updatayar.app</string>
+    <string name="custom_url_scheme">com.updatayar.app</string>
+</resources>

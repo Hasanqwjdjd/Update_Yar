@@ -1,0 +1,20 @@
+{
+  "name": "آپدیت‌یار | مدیریت هوشمند آپدیت برنامه‌ها",
+  "short_name": "آپدیت‌یار",
+  "description": "همه به‌روزرسانی‌های گوشی شما از بازار، مایکت، گوگل‌پلی و گیت‌هاب — یک‌جا",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0F14",
+  "theme_color": "#0B0F14",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
