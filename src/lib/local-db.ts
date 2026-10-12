@@ -1,19 +1,26 @@
 'use client'
 
 /**
- * دیتابیس محلی «آپدیت‌یار» — نسخه ۲ (واقعی)
+ * دیتابیس محلی «آپدیت‌یار» — نسخه ۳ (کاملاً واقعی)
  *
  * روی گوشی: لیست برنامه‌ها از پلاگین نیتیو (برنامه‌های واقعاً نصب‌شده) خوانده می‌شود
- * و فقط کش می‌شود. تشخیص آپدیت با «کاتالوگ مرجع» (آخرین نسخه‌ی شناخته‌شده هر برنامه)
- * انجام می‌شود. سینک گیت‌هاب، داده‌ی زنده از API گیت‌هاب می‌گیرد.
+ * و فقط کش می‌شود. تشخیص آپدیت با «کاتالوگ مرجع» انجام می‌شود.
+ * سینک گیت‌هاب، داده‌ی زنده از API گیت‌هاب می‌گیرد.
  *
- * در مرورگر (پیش‌نمایش وب): پلاگین نیتیو وجود ندارد → داده نمایشی fallback
+ * ⚠️ هیچ داده‌ی نمایشی/فیک در این فایل وجود ندارد:
+ *  - حامیان = فقط پرداخت‌های واقعی تأییدشده‌ی همین گوشی
+ *  - اشتراک = فقط پس از تأیید درگاه زارین‌پال فعال می‌شود
+ *  - مخازن گیت‌هاب = پیشنهادهای مرجع + مخازنی که خود کاربر اضافه می‌کند
  */
 
-import type { AdItemT, GithubRepoItem, HistoryItem, InstalledApp, SettingsT, SupporterItem } from '@/lib/types'
+import type {
+  AdItemT, GithubRepoItem, HistoryItem, InstalledApp, PaymentRecord, SettingsT, SupporterItem,
+} from '@/lib/types'
 import type { NativeAppInfo } from '@/lib/native'
 
-const STORAGE_KEY = 'updatayar-db-v2'
+const STORAGE_KEY = 'updatayar-db-v3'
+/** کلیدهای نسخه‌های قبلی — پس از مهاجرت پاک می‌شوند تا حافظه اشغال نشود */
+const OLD_KEYS = ['updatayar-db-v2', 'updatayar-db']
 
 // ---------- کاتالوگ مرجع (آخرین نسخه‌ی شناخته‌شده برنامه‌ها) ----------
 
@@ -54,7 +61,7 @@ for (const c of CATALOG) {
   CATALOG_BY_PKG.set((c).pkg, c)
 }
 
-// ---------- مخازن گیت‌هاب دنبال‌شده ----------
+// ---------- مخازن گیت‌هاب مرجع (پیشنهادهای اکسپلور — با سینک زنده به‌روز می‌شوند) ----------
 
 const REPOS_SEED: Array<Omit<GithubRepoItem, 'id'>> = [
   { fullName: 'material-components/material-components-android', description: 'کتابخانه اجزای ماژولار برای اندروید بر پایه Material Design 3', latestVersion: '1.12.0', installedVersion: null, stars: 16400, language: 'Kotlin', isNew: false, installed: false, changelog: '', appPackage: 'com.material.components' },
@@ -63,17 +70,6 @@ const REPOS_SEED: Array<Omit<GithubRepoItem, 'id'>> = [
   { fullName: 'ReVancedTeam/ReVanced-Manager', description: 'سازنده پچ‌های ReVanced برای اپلیکیشن‌های اندروید', latestVersion: '1.22.0', installedVersion: null, stars: 18500, language: 'Dart', isNew: false, installed: false, changelog: '', appPackage: 'app.revanced.manager.flutter' },
   { fullName: 'florisboard/florisboard', description: 'کیبورد متن‌باز سبک و فارسی‌پسند برای اندروید', latestVersion: '0.4.3', installedVersion: null, stars: 6900, language: 'Kotlin', isNew: false, installed: false, changelog: '', appPackage: 'dev.patrickgold.florisboard' },
   { fullName: 'teamnewpipe/NewPipe', description: 'رابط سبک و آزاد برای یوتیوب بدون تبلیغات', latestVersion: '0.27.2', installedVersion: null, stars: 33000, language: 'Java', isNew: false, installed: false, changelog: '', appPackage: 'org.schabi.newpipe' },
-]
-
-// ---------- حامیان نمونه (بخش حمایت مالی) ----------
-
-const SUPPORTERS_SEED: Array<Omit<SupporterItem, 'id' | 'createdAt'>> = [
-  { name: 'محمدرضا احمدی', tier: 'gold', amount: 250000, message: 'بهترین برنامه مدیریت آپدیت! 🚀' },
-  { name: 'سارا کریمی', tier: 'silver', amount: 100000, message: null },
-  { name: 'حسین نجفی', tier: 'bronze', amount: 50000, message: 'دمتون گرم، کارتون حرف نداره' },
-  { name: 'کاربر ناشناس', tier: 'one-time', amount: 25000, message: null },
-  { name: 'فاطمه صادقی', tier: 'silver', amount: 100000, message: 'امیدوارم همیشه فعال باشید' },
-  { name: 'علی رضایی', tier: 'one-time', amount: 10000, message: null },
 ]
 
 // ---------- شکل داده ذخیره‌شده ----------
@@ -85,9 +81,13 @@ interface DBShape {
   history: HistoryItem[]
   repos: GithubRepoItem[]
   settings: SettingsT
+  /** حامیان واقعی — فقط پرداخت‌های تأییدشده‌ی همین گوشی */
+  supporters: SupporterItem[]
+  /** رسیدهای پرداخت تأییدشده */
+  payments: PaymentRecord[]
 }
 
-function defaultSettings(now: number): SettingsT {
+function defaultSettings(): SettingsT {
   return {
     notifications: true,
     notifyNewUpdates: true,
@@ -107,7 +107,9 @@ function defaultSettings(now: number): SettingsT {
     sourceCustom: false,
     isPremium: false,
     premiumPlan: null,
+    premiumUntil: null,
     supporterTier: null,
+    zarinpalMerchant: '',
     onboarded: false,
   }
 }
@@ -118,11 +120,29 @@ function uid(): string {
 
 function buildSeed(): DBShape {
   return {
-    version: 2,
+    version: 3,
     apps: [],
     history: [],
     repos: REPOS_SEED.map((r, i) => ({ ...r, id: 'repo-' + i })),
-    settings: defaultSettings(Date.now()),
+    settings: defaultSettings(),
+    supporters: [],
+    payments: [],
+  }
+}
+
+/** بعد از خواندن JSON قدیمی/ناقص، شکل داده را تضمین می‌کند */
+function normalize(raw: unknown): DBShape {
+  const seed = buildSeed()
+  if (!raw || typeof raw !== 'object') return seed
+  const db = raw as Partial<DBShape>
+  return {
+    version: 3,
+    apps: Array.isArray(db.apps) ? db.apps : [],
+    history: Array.isArray(db.history) ? db.history : [],
+    repos: Array.isArray(db.repos) && db.repos.length > 0 ? db.repos : seed.repos,
+    settings: { ...seed.settings, ...(db.settings && typeof db.settings === 'object' ? db.settings : {}) },
+    supporters: Array.isArray(db.supporters) ? db.supporters : [],
+    payments: Array.isArray(db.payments) ? db.payments : [],
   }
 }
 
@@ -138,8 +158,12 @@ function load(): DBShape {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      cache = JSON.parse(raw) as DBShape
+      cache = normalize(JSON.parse(raw))
       return cache
+    }
+    // داده‌ی نسخه‌های قبل (کلیدهای قدیمی) — شکل متفاوت، قابل اطمینان نیست → پاک‌سازی
+    for (const k of OLD_KEYS) {
+      try { window.localStorage.removeItem(k) } catch { /* noop */ }
     }
   } catch { /* داده خراب — بازسازی */ }
   cache = buildSeed()
@@ -151,7 +175,15 @@ function save(): void {
   if (typeof window === 'undefined' || !cache) return
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache))
-  } catch { /* پر بودن حافظه — نادیده بگیر */ }
+  } catch {
+    // پر شدن حافظه — آیکون‌ها را حذف و دوباره تلاش می‌کنیم (کش برنامه‌ها حجیم‌ترین بخش است)
+    try {
+      if (cache.apps) {
+        cache.apps = cache.apps.map((a) => ({ ...a, iconBase64: null }))
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache))
+    } catch { /* نادیده بگیر */ }
+  }
 }
 
 // ---------- ابزار مقایسه نسخه ----------
@@ -172,28 +204,37 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 // ---------- ساخت لیست برنامه‌ها از داده‌ی نیتیو گوشی ----------
 
 export function buildAppsFromNative(natives: NativeAppInfo[]): InstalledApp[] {
-  return natives
+  return (natives ?? [])
+    .filter((n) => n && typeof n.packageName === 'string')
     .map((n) => {
       const cat = CATALOG_BY_PKG.get(n.packageName)
-      const hasUpdate = cat ? isNewerVersion(cat.latest, n.versionName) : false
+      const installed = typeof n.versionName === 'string' ? n.versionName : '?'
+      const hasUpdate = cat ? isNewerVersion(cat.latest, installed) : false
+      let installedAt = new Date().toISOString()
+      try {
+        if (n.installTime && Number.isFinite(n.installTime)) {
+          const d = new Date(n.installTime)
+          if (!Number.isNaN(d.getTime())) installedAt = d.toISOString()
+        }
+      } catch { /* noop */ }
       const app: InstalledApp = {
         id: 'app-' + n.packageName,
-        name: cat?.name ?? n.appName,
-        nameEn: cat?.nameEn ?? n.appName,
+        name: cat?.name ?? (typeof n.appName === 'string' && n.appName ? n.appName : n.packageName),
+        nameEn: cat?.nameEn ?? (typeof n.appName === 'string' ? n.appName : n.packageName),
         package: n.packageName,
-        version: n.versionName,
+        version: installed,
         newVersion: hasUpdate && cat ? cat.latest : null,
         changelog: hasUpdate && cat?.changelog ? cat.changelog : '',
-        sizeMB: n.sizeMB,
+        sizeMB: typeof n.sizeMB === 'number' && Number.isFinite(n.sizeMB) ? n.sizeMB : 0,
         iconColor: cat?.iconColor ?? 'slate',
         iconType: cat?.iconType ?? 'Package',
-        iconBase64: n.iconBase64 ?? null,
+        iconBase64: typeof n.iconBase64 === 'string' ? n.iconBase64 : null,
         source: cat?.source ?? (n.isSystem ? 'system' : 'bazaar'),
         category: cat?.category ?? 'برنامه',
         developer: cat?.developer ?? '—',
-        installedAt: new Date(n.installTime).toISOString(),
+        installedAt,
         lastCheck: new Date().toISOString(),
-        system: n.isSystem,
+        system: Boolean(n.isSystem),
       }
       return app
     })
@@ -228,12 +269,10 @@ export function demoApps(): InstalledApp[] {
     { pkg: 'com.snappfood', version: '5.2.1', hasUpdate: false, sizeMB: 41.8 },
     { pkg: 'app.bale.messenger', version: '3.5.2', hasUpdate: true, sizeMB: 38.9 },
     { pkg: 'com.aparat', version: '5.9.0', hasUpdate: true, sizeMB: 34.6 },
-    { pkg: 'com.soroush.plus', version: '3.1.8', hasUpdate: true, sizeMB: 28.4 },
     { pkg: 'com.torob.mobile', version: '4.1.2', hasUpdate: false, sizeMB: 22.7 },
     { pkg: 'com.mellat.bbank', version: '10.2.0', hasUpdate: true, sizeMB: 31.5 },
     { pkg: 'com.filimo', version: '8.2.3', hasUpdate: true, sizeMB: 29.8 },
     { pkg: 'com.whatsapp', version: '2.24.20', hasUpdate: false, sizeMB: 74.2 },
-    { pkg: 'com.google.android.apps.maps', version: '11.115.01', hasUpdate: false, sizeMB: 96.7 },
     { pkg: 'com.google.android.youtube', version: '19.05.36', hasUpdate: true, sizeMB: 118.3 },
     { pkg: 'org.schabi.newpipe', version: '0.27.0', hasUpdate: true, sizeMB: 12.8 },
     { pkg: 'dev.patrickgold.florisboard', version: '0.4.2', hasUpdate: false, sizeMB: 16.1 },
@@ -293,7 +332,7 @@ const ALLOWED_KEYS = [
   'darkTheme', 'accentTheme', 'syncWithSystem', 'scheduledTheme',
   'dataSaver', 'autoUpdateWifi', 'scheduledChecks',
   'sourceGooglePlay', 'sourceBazaar', 'sourceMyket', 'sourceGithub', 'sourceCustom',
-  'isPremium', 'premiumPlan', 'supporterTier', 'onboarded',
+  'isPremium', 'premiumPlan', 'premiumUntil', 'supporterTier', 'zarinpalMerchant', 'onboarded',
 ] as const
 
 export function updateSettings(patch: Partial<SettingsT>): SettingsT {
@@ -320,32 +359,46 @@ interface LiveRepoInfo {
   notes?: string
 }
 
-async function fetchRepoLive(fullName: string): Promise<LiveRepoInfo | null> {
+/** fetch با سقف زمانی — تا درخواست‌های بی‌جواب، اپ را گیر نیندازند */
+async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
   try {
-    const [repoRes, relRes] = await Promise.allSettled([
-      fetch(`https://api.github.com/repos/${fullName}`),
-      fetch(`https://api.github.com/repos/${fullName}/releases/latest`),
-    ])
-    const out: LiveRepoInfo = {}
-    if (repoRes.status === 'fulfilled' && repoRes.value.ok) {
-      const j = (await repoRes.value.json()) as { stargazers_count?: number; description?: string }
-      out.stars = j.stargazers_count
-      out.description = j.description ?? undefined
-    }
-    if (relRes.status === 'fulfilled' && relRes.value.ok) {
-      const j = (await relRes.value.json()) as { tag_name?: string; body?: string }
-      out.tag = j.tag_name
-      out.notes = j.body
-    }
-    return out
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) return null
+    return await res.json()
   } catch {
     return null
   }
 }
 
+async function fetchRepoLive(fullName: string): Promise<LiveRepoInfo | null> {
+  const [repoRes, relRes] = await Promise.allSettled([
+    fetchJson(`https://api.github.com/repos/${fullName}`),
+    fetchJson(`https://api.github.com/repos/${fullName}/releases/latest`),
+  ])
+  const out: LiveRepoInfo = {}
+  let any = false
+  if (repoRes.status === 'fulfilled' && repoRes.value) {
+    const j = repoRes.value as { stargazers_count?: number; description?: string }
+    if (typeof j.stargazers_count === 'number') { out.stars = j.stargazers_count; any = true }
+    if (typeof j.description === 'string' && j.description) { out.description = j.description; any = true }
+  }
+  if (relRes.status === 'fulfilled' && relRes.value) {
+    const j = relRes.value as { tag_name?: string; body?: string }
+    if (typeof j.tag_name === 'string' && j.tag_name) { out.tag = j.tag_name; any = true }
+    if (typeof j.body === 'string' && j.body) { out.notes = j.body; any = true }
+  }
+  return any ? out : null
+}
+
 /**
  * سینک واقعی: داده زنده از api.github.com + وضعیت نصب واقعی از برنامه‌های گوشی.
- * اگر اینترنت نبود، همان کش قبلی برمی‌گردد (false).
+ * اگر اینترنت نبود، همان کش قبلی برمی‌گردد (live=false).
  */
 export async function syncReposLive(installedApps: InstalledApp[]): Promise<{ repos: GithubRepoItem[]; live: boolean }> {
   const db = load()
@@ -371,21 +424,106 @@ export async function syncReposLive(installedApps: InstalledApp[]): Promise<{ re
       }
     }
     // وضعیت نصب واقعی
-    const installedApp = installedApps.find((a) => a.package && a.package === repo.appPackage)
+    const installedApp = repo.appPackage
+      ? installedApps.find((a) => a.package === repo.appPackage)
+      : undefined
     repo.installed = Boolean(installedApp)
     repo.installedVersion = installedApp ? installedApp.version : null
     repo.isNew = Boolean(
       repo.installedVersion &&
+      repo.latestVersion !== '—' &&
       isNewerVersion(repo.latestVersion, repo.installedVersion)
     )
   })
 
-  if (liveCount > 0) {
-    db.repos = repos
-    save()
-    return { repos, live: true }
+  db.repos = repos
+  save()
+  return { repos, live: liveCount > 0 }
+}
+
+// ---------- مخازن سفارشی کاربر (افزودن منبع واقعی) ----------
+
+export interface RepoValidation {
+  ok: boolean
+  error?: string
+  info?: { description: string; stars: number; language: string; tag: string | null }
+}
+
+/** اعتبارسنجی واقعی مخزن با API گیت‌هاب */
+export async function validateRepo(fullNameRaw: string): Promise<RepoValidation> {
+  const fullName = normalizeRepoName(fullNameRaw)
+  if (!fullName) {
+    return { ok: false, error: 'قالب درست: owner/repo — مثل teamnewpipe/NewPipe' }
   }
-  return { repos, live: false }
+  const repo = (await fetchJson(`https://api.github.com/repos/${fullName}`)) as
+    | { stargazers_count?: number; description?: string; language?: string; message?: string }
+    | null
+  if (!repo) {
+    return { ok: false, error: 'مخزن پیدا نشد — نام را بررسی کنید و اتصال اینترنت (و VPN در صورت نیاز) را چک کنید' }
+  }
+  if (typeof repo.message === 'string' && repo.message.includes('Not Found')) {
+    return { ok: false, error: `مخزن «${fullName}» در گیت‌هاب وجود ندارد` }
+  }
+  let tag: string | null = null
+  const rel = (await fetchJson(`https://api.github.com/repos/${fullName}/releases/latest`)) as
+    | { tag_name?: string }
+    | null
+  if (rel && typeof rel.tag_name === 'string') tag = rel.tag_name
+  return {
+    ok: true,
+    info: {
+      description: typeof repo.description === 'string' && repo.description ? repo.description : 'بدون توضیح',
+      stars: typeof repo.stargazers_count === 'number' ? repo.stargazers_count : 0,
+      language: typeof repo.language === 'string' && repo.language ? repo.language : '—',
+      tag,
+    },
+  }
+}
+
+/** «https://github.com/owner/repo/» → «owner/repo» */
+export function normalizeRepoName(input: string): string {
+  let s = input.trim()
+  s = s.replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+  s = s.replace(/^github\.com\//i, '')
+  s = s.replace(/^\/+|\/+$/g, '')
+  s = s.replace(/\.git$/i, '')
+  const m = s.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/)
+  return m ? `${m[1]}/${m[2]}` : ''
+}
+
+/** افزودن مخزن سفارشی — بعد از validateRepo استفاده می‌شود */
+export function addCustomRepo(fullName: string, info: { description: string; stars: number; language: string; tag: string | null }): GithubRepoItem {
+  const db = load()
+  const existing = db.repos.find((r) => r.fullName === fullName)
+  const item: GithubRepoItem = {
+    id: existing ? existing.id : 'custom-' + uid(),
+    fullName,
+    description: info.description,
+    latestVersion: info.tag ? info.tag.replace(/^v/i, '') : '—',
+    installedVersion: null,
+    stars: info.stars,
+    language: info.language,
+    isNew: false,
+    installed: false,
+    changelog: '',
+    appPackage: null,
+    custom: true,
+  }
+  if (existing) {
+    const idx = db.repos.indexOf(existing)
+    db.repos[idx] = item
+  } else {
+    db.repos = [item, ...db.repos]
+  }
+  save()
+  return item
+}
+
+export function removeRepo(id: string): GithubRepoItem[] {
+  const db = load()
+  db.repos = db.repos.filter((r) => r.id !== id || !r.custom)
+  save()
+  return [...db.repos]
 }
 
 // ---------- تبلیغات (خالی — تا برند واقعی اضافه شود) ----------
@@ -394,19 +532,15 @@ export function listAds(): AdItemT[] {
   return []
 }
 
-// ---------- حامیان ----------
+// ---------- حامیان (فقط پرداخت‌های واقعی تأییدشده‌ی همین گوشی) ----------
 
 export function listSupporters(): SupporterItem[] {
-  const now = Date.now()
-  const day = 86400000
-  return SUPPORTERS_SEED.map((s, i) => ({
-    ...s,
-    id: 'sup-' + i,
-    createdAt: new Date(now - (i + 2) * day).toISOString(),
-  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return [...load().supporters].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
+/** فقط بعد از تأیید واقعی درگاه (verify) صدا زده شود */
 export function addSupporter(input: { name: string; tier: SupporterItem['tier']; amount: number; message?: string | null }): SupporterItem {
+  const db = load()
   const item: SupporterItem = {
     id: uid(),
     name: input.name,
@@ -415,15 +549,28 @@ export function addSupporter(input: { name: string; tier: SupporterItem['tier'];
     message: input.message ?? null,
     createdAt: new Date().toISOString(),
   }
+  db.supporters = [item, ...db.supporters].slice(0, 200)
+  save()
   return item
 }
 
-// ---------- اشتراک ویژه (فعال‌سازی محلی — پرداخت واقعی متصل نیست) ----------
+// ---------- اشتراک ویژه (فقط پس از تأیید درگاه) ----------
 
+const PLAN_DAYS: Record<string, number | null> = {
+  monthly: 31,
+  yearly: 366,
+  lifetime: null,
+}
+
+/** فعال‌سازی اشتراک — تنها از مسیر تأیید پرداخت (payment.ts) صدا زده شود */
 export function activatePremium(plan: 'monthly' | 'yearly' | 'lifetime'): SettingsT {
   const db = load()
+  const days = PLAN_DAYS[plan] ?? null
   db.settings.isPremium = true
   db.settings.premiumPlan = plan
+  db.settings.premiumUntil = days
+    ? new Date(Date.now() + days * 86400000).toISOString()
+    : null
   save()
   return db.settings
 }
@@ -432,6 +579,28 @@ export function cancelPremium(): SettingsT {
   const db = load()
   db.settings.isPremium = false
   db.settings.premiumPlan = null
+  db.settings.premiumUntil = null
   save()
   return db.settings
+}
+
+/** آیا اشتراک واقعاً فعال است؟ (با احتساب انقضا) */
+export function isPremiumActive(settings: SettingsT | null): boolean {
+  if (!settings?.isPremium) return false
+  if (!settings.premiumUntil) return true // مادام‌العمر
+  return new Date(settings.premiumUntil).getTime() > Date.now()
+}
+
+// ---------- رسیدهای پرداخت ----------
+
+export function recordPayment(rec: Omit<PaymentRecord, 'id'>): PaymentRecord {
+  const db = load()
+  const full: PaymentRecord = { ...rec, id: uid() }
+  db.payments = [full, ...db.payments].slice(0, 50)
+  save()
+  return full
+}
+
+export function listPayments(): PaymentRecord[] {
+  return [...load().payments].sort((a, b) => b.date.localeCompare(a.date))
 }

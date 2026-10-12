@@ -7,12 +7,29 @@ import {
   updateSettings as dbUpdateSettings, saveAppsCache,
 } from '@/lib/local-db'
 import { InstalledApps, isNativeApp } from '@/lib/native'
+import { faDigits } from '@/lib/persian'
+import type { PaymentDone } from '@/lib/payment'
 
 export type View = 'home' | 'updates' | 'github' | 'history' | 'settings'
+
+export type ScanError = 'permission' | 'timeout' | 'failed' | null
 
 export interface SearchState {
   active: boolean
   query: string
+}
+
+/** سقف زمانی اسکن — تا هیچ‌وقت اپ روی اورلی اسکن گیر نکند */
+const SCAN_TIMEOUT_MS = 45000
+
+function withTimeout<T>(p: Promise<T>, ms: number, tag = 'timeout'): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(tag)), ms)
+    p.then(
+      (v) => { clearTimeout(t); resolve(v) },
+      (e) => { clearTimeout(t); reject(e) },
+    )
+  })
 }
 
 interface AppStore {
@@ -24,9 +41,11 @@ interface AppStore {
   settings: SettingsT | null
   loading: boolean
   scanning: boolean
+  scanError: ScanError
   loadAll: () => Promise<void>
+  /** اجرای اسکن واقعی برنامه‌ها — از همه‌ی دکمه‌ها صدا زده می‌شود */
+  runScan: () => Promise<void>
   applyScanResult: (apps: InstalledApp[]) => void
-  setScanning: (v: boolean) => void
 
   search: SearchState
   toggleSearch: () => void
@@ -43,6 +62,13 @@ interface AppStore {
   launchApp: (app: InstalledApp) => Promise<void>
 
   updateSettings: (patch: Partial<SettingsT>) => Promise<void>
+  /** بازخوانی تنظیمات از دیتابیس محلی (بعد از فعال‌شدن اشتراک و...) */
+  refreshSettings: () => void
+
+  /** نتیجه‌ی پرداخت موفق (پس از تأیید درگاه) — شیت‌ها به آن واکنش نشان می‌دهند */
+  paymentDone: PaymentDone | null
+  setPaymentDone: (r: PaymentDone) => void
+  clearPaymentDone: () => void
 
   // اعلان‌های شیشه‌ای
   toast: string | null
@@ -60,6 +86,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settings: null,
   loading: true,
   scanning: false,
+  scanError: null,
   loadAll: async () => {
     try {
       const cached = loadAppsCache()
@@ -67,25 +94,61 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const settings = getSettings()
       set({ apps: cached, history, settings, loading: cached.length > 0 ? false : true })
       // اگر هیچ کشی نیست، اسکن اولیه انجام می‌شود (روی گوشی)
-      if (cached.length === 0) {
-        if (isNativeApp()) {
-          try {
-            const { apps: natives } = await InstalledApps.listInstalledApps()
-            const { buildAppsFromNative } = await import('@/lib/local-db')
-            const apps = buildAppsFromNative(natives)
-            saveAppsCache(apps)
-            set({ apps, loading: false })
-            return
-          } catch { /* اسکن صفحه اصلی هم انجام می‌دهد */ }
-        }
+      if (cached.length === 0 && isNativeApp()) {
+        void get().runScan()
+      } else if (cached.length === 0) {
         set({ loading: false })
       }
     } catch {
       set({ loading: false })
     }
   },
+
+  runScan: async () => {
+    if (get().scanning) return
+    set({ scanning: true, scanError: null })
+    const { showToast } = get()
+    try {
+      if (!isNativeApp()) {
+        // پیش‌نمایش وب — داده نمایشی (روی گوشی، اسکن واقعی انجام می‌شود)
+        await new Promise((r) => setTimeout(r, 700))
+        const { demoApps } = await import('@/lib/local-db')
+        set({ apps: demoApps(), loading: false })
+        showToast('پیش‌نمایش وب — نسخه اندروید گوشی واقعی شما را اسکن می‌کند')
+        return
+      }
+
+      // اسکن واقعی: خواندن برنامه‌های نصب‌شده از خود گوشی (با سقف زمانی)
+      const scan = await withTimeout(
+        InstalledApps.listInstalledApps(),
+        SCAN_TIMEOUT_MS,
+        'timeout',
+      )
+      const { buildAppsFromNative } = await import('@/lib/local-db')
+      const apps = buildAppsFromNative(scan?.apps ?? [])
+      saveAppsCache(apps)
+      set({ apps, loading: false })
+      const updateCount = apps.filter((a) => a.newVersion).length
+      showToast(
+        updateCount > 0
+          ? `${faDigits(apps.length)} برنامه بررسی شد — ${faDigits(updateCount)} به‌روزرسانی موجود است`
+          : `${faDigits(apps.length)} برنامه بررسی شد — همه به‌روز هستند ✓`
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('PERMISSION_DENIED')) {
+        set({ scanError: 'permission' })
+      } else if (msg === 'timeout') {
+        set({ scanError: 'timeout' })
+      } else {
+        set({ scanError: 'failed' })
+      }
+    } finally {
+      set({ scanning: false })
+    }
+  },
+
   applyScanResult: (apps) => set({ apps }),
-  setScanning: (v) => set({ scanning: v }),
 
   search: { active: false, query: '' },
   toggleSearch: () => set((s) => ({ search: { active: !s.search.active, query: '' } })),
@@ -165,10 +228,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ settings: { ...current, ...fresh } })
   },
 
+  refreshSettings: () => {
+    set({ settings: getSettings() })
+  },
+
+  paymentDone: null,
+  setPaymentDone: (r) => set({ paymentDone: r }),
+  clearPaymentDone: () => set({ paymentDone: null }),
+
   toast: null,
   showToast: (msg) => {
     if (toastTimer) clearTimeout(toastTimer)
     set({ toast: msg })
-    toastTimer = setTimeout(() => set({ toast: null }), 2600)
+    toastTimer = setTimeout(() => set({ toast: null }), 3200)
   },
 }))

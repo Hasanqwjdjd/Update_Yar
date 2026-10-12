@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Radar, Star, GitBranch } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Loader2, Radar, Star, GitBranch, ShieldAlert, RefreshCcw, Settings2, PartyPopper } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useAppStore } from '@/lib/store'
 import { BottomNav } from '@/components/app/bottom-nav'
@@ -17,8 +17,9 @@ import { PremiumSheet } from '@/components/app/premium-sheet'
 import { SupportSheet } from '@/components/app/support-sheet'
 import { AdBanner } from '@/components/app/ad-banner'
 import { faDigits, faNumber } from '@/lib/persian'
-import { listAds, buildAppsFromNative, saveAppsCache, demoApps } from '@/lib/local-db'
+import { listAds, isPremiumActive } from '@/lib/local-db'
 import { InstalledApps, isNativeApp } from '@/lib/native'
+import { checkPendingPayment, hasPendingPayment } from '@/lib/payment'
 import type { AdItemT, GithubRepoItem, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -26,9 +27,12 @@ export default function Page() {
   const view = useAppStore((s) => s.view)
   const settings = useAppStore((s) => s.settings)
   const loadAll = useAppStore((s) => s.loadAll)
+  const runScan = useAppStore((s) => s.runScan)
   const scanning = useAppStore((s) => s.scanning)
-  const setScanning = useAppStore((s) => s.setScanning)
-  const applyScanResult = useAppStore((s) => s.applyScanResult)
+  const scanError = useAppStore((s) => s.scanError)
+  const paymentDone = useAppStore((s) => s.paymentDone)
+  const clearPaymentDone = useAppStore((s) => s.clearPaymentDone)
+  const refreshSettings = useAppStore((s) => s.refreshSettings)
   const showToast = useAppStore((s) => s.showToast)
   const toast = useAppStore((s) => s.toast)
 
@@ -36,12 +40,11 @@ export default function Page() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [premiumOpen, setPremiumOpen] = useState(false)
   const [supportOpen, setSupportOpen] = useState(false)
-  const [ads, setAds] = useState<AdItemT[]>([])
+  const ads = useMemo(() => listAds(), [])
   const [repoDetails, setRepoDetails] = useState<GithubRepoItem | null>(null)
 
   useEffect(() => {
     void loadAll()
-    setAds(listAds())
   }, [loadAll])
 
   // اعمال تم روی سند
@@ -63,41 +66,50 @@ export default function Page() {
     document.documentElement.setAttribute('data-accent', settings.accentTheme)
   }, [settings])
 
+  // ---- پرداخت: بررسی خودکار پس از بازگشت از درگاه زارین‌پال ----
+  useEffect(() => {
+    let alive = true
+    const check = async () => {
+      if (!hasPendingPayment()) return
+      const r = await checkPendingPayment()
+      if (!alive) return
+      if (r.ok && r.done) {
+        refreshSettings()
+        useAppStore.getState().setPaymentDone(r.done)
+        showToast(`پرداخت تأیید شد ✓ کد رهگیری: ${faDigits(r.done.refId)}`)
+      }
+    }
+
+    // ۱) deep-link بازگشت از درگاه (updatayar://payment)
+    let removeUrlListener: (() => void) | null = null
+    if (isNativeApp()) {
+      void InstalledApps.addListener('appUrlOpen', () => { void check() }).then((h) => {
+        removeUrlListener = () => { void InstalledApps.removeListener('appUrlOpen', h) }
+      }).catch(() => { /* noop */ })
+    }
+
+    // ۲) بازگشت به اپ / برگشت فوکوس
+    const onVis = () => { if (!document.hidden) void check() }
+    document.addEventListener('visibilitychange', onVis)
+
+    // ۳) بررسی دوره‌ای تا وقتی پرداختی در انتظار است
+    const iv = setInterval(() => { void check() }, 7000)
+    void check()
+
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', onVis)
+      clearInterval(iv)
+      removeUrlListener?.()
+    }
+  }, [refreshSettings, showToast])
+
   // جلوگیری از اسکرول پس‌زمینه هنگام باز بودن شیت
   const isSheetOpen = Boolean(detailsApp) || profileOpen || premiumOpen || supportOpen
   useEffect(() => {
     document.body.style.overflow = isSheetOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [isSheetOpen])
-
-  const runScan = useCallback(async () => {
-    if (useAppStore.getState().scanning) return
-    setScanning(true)
-    try {
-      if (isNativeApp()) {
-        // اسکن واقعی: خواندن برنامه‌های نصب‌شده از خود گوشی
-        const { apps: natives } = await InstalledApps.listInstalledApps()
-        const apps = buildAppsFromNative(natives)
-        saveAppsCache(apps)
-        applyScanResult(apps)
-        const updateCount = apps.filter((a) => a.newVersion).length
-        showToast(
-          updateCount > 0
-            ? `${faDigits(apps.length)} برنامه بررسی شد — ${faDigits(updateCount)} به‌روزرسانی موجود است`
-            : `${faDigits(apps.length)} برنامه بررسی شد — همه به‌روز هستند ✓`
-        )
-      } else {
-        // پیش‌نمایش وب — داده نمایشی (روی گوشی، اسکن واقعی انجام می‌شود)
-        await new Promise((r) => setTimeout(r, 900))
-        applyScanResult(demoApps())
-        showToast('پیش‌نمایش وب — نسخه اندروید، گوشی واقعی شما را اسکن می‌کند')
-      }
-    } catch {
-      showToast('خواندن برنامه‌های نصب‌شده ناموفق بود')
-    } finally {
-      setScanning(false)
-    }
-  }, [applyScanResult, setScanning, showToast])
 
   // اسکن اولیه بعد از onboarding
   useEffect(() => {
@@ -108,6 +120,35 @@ export default function Page() {
   }, [settings?.onboarded, runScan])
 
   const openDetails = useCallback((app: InstalledApp) => setDetailsApp(app), [])
+
+  // دیالوگ موفقیت پرداخت (سراسری)
+  const paymentBanner = paymentDone && (
+    <Dialog open onOpenChange={() => clearPaymentDone()}>
+      <DialogContent className="max-w-[360px] rounded-3xl border-border bg-card" dir="rtl">
+        <DialogHeader className="items-center text-center">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/15">
+            <PartyPopper className="size-7 text-primary" />
+          </div>
+          <DialogTitle className="text-[16px]">پرداخت با موفقیت تأیید شد</DialogTitle>
+          <DialogDescription className="text-center text-[12px] leading-6">
+            {paymentDone.kind === 'premium'
+              ? 'اشتراک ویژه آپدیت‌یار فعال شد. از حمایت شما سپاسگزاریم!'
+              : 'حمایت شما ثبت شد و نام شما در دیوار حامیان درج شد. سپاسگزاریم!'}
+            <br />
+            کد رهگیری: <b className="num">{faDigits(paymentDone.refId)}</b>
+            <br />
+            مبلغ: <b className="num">{faNumber(paymentDone.amountToman)}</b> تومان
+          </DialogDescription>
+        </DialogHeader>
+        <button
+          onClick={() => clearPaymentDone()}
+          className="min-h-[44px] w-full rounded-2xl bg-primary text-[14px] font-black text-primary-foreground"
+        >
+          عالیه!
+        </button>
+      </DialogContent>
+    </Dialog>
+  )
 
   if (!settings) {
     return (
@@ -129,6 +170,8 @@ export default function Page() {
     )
   }
 
+  const premiumActive = isPremiumActive(settings)
+
   return (
     <main className="mx-auto min-h-screen max-w-[430px] bg-background shadow-2xl shadow-black/20 sm:border-x sm:border-border">
       {view === 'home' && (
@@ -146,7 +189,7 @@ export default function Page() {
       )}
 
       <BottomNav />
-      <AdBanner isPremium={settings.isPremium} hidden={view === 'updates'} />
+      <AdBanner isPremium={premiumActive} hidden={view === 'updates'} />
 
       {/* اورلی بررسی آپدیت */}
       {scanning && (
@@ -164,6 +207,52 @@ export default function Page() {
         </div>
       )}
 
+      {/* دیالوگ خطای اسکن — با راهنمای واقعی */}
+      {!scanning && scanError && (
+        <Dialog open onOpenChange={() => useAppStore.setState({ scanError: null })}>
+          <DialogContent className="max-w-[380px] rounded-3xl border-border bg-card" dir="rtl">
+            <DialogHeader className="items-start text-right">
+              <DialogTitle className="flex items-center gap-2 text-[16px]">
+                <ShieldAlert className="size-5 text-amber-500" />
+                {scanError === 'permission' ? 'دسترسی به لیست برنامه‌ها داده نشد' : 'اسکن برنامه‌ها انجام نشد'}
+              </DialogTitle>
+              <DialogDescription className="text-right text-[12px] leading-6">
+                {scanError === 'permission' ? (
+                  <>
+                    گوشی‌های شیائومی/اندروید ۱۱ به بعد برای دیدن لیست برنامه‌ها اجازه‌ی
+                    «اطلاعات برنامه‌های نصب‌شده» می‌خواهند. در تنظیمات، به
+                    <b> برنامه‌ها ← آپدیت‌یار </b> بروید و در «سایر دسترسی‌ها» گزینه‌ی
+                    <b> دریافت اطلاعات برنامه‌های نصب‌شده </b> را فعال کنید.
+                  </>
+                ) : scanError === 'timeout' ? (
+                  'خواندن برنامه‌ها بیش از حد طول کشید. گوشی را برای چند لحظه رها کنید و دوباره تلاش کنید.'
+                ) : (
+                  'خواندن برنامه‌ها با خطا مواجه شد. دوباره تلاش کنید؛ اگر تکرار شد گوشی را ری‌استارت کنید.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2">
+              {scanError === 'permission' && isNativeApp() && (
+                <button
+                  onClick={() => { void InstalledApps.openAppSettings() }}
+                  className="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-2xl border border-border text-[13px] font-bold"
+                >
+                  <Settings2 className="size-4" />
+                  رفتن به تنظیمات
+                </button>
+              )}
+              <button
+                onClick={() => { void runScan() }}
+                className="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[13px] font-black text-primary-foreground"
+              >
+                <RefreshCcw className="size-4" />
+                تلاش دوباره
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* توست */}
       {toast && (
         <div className="fixed bottom-32 left-1/2 z-50 w-max max-w-[85vw] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4">
@@ -178,7 +267,7 @@ export default function Page() {
       <ProfileSheet
         open={profileOpen}
         onOpenChange={setProfileOpen}
-        isPremium={settings.isPremium}
+        isPremium={premiumActive}
         supporterTier={settings.supporterTier}
         onOpenPremium={() => { setProfileOpen(false); setTimeout(() => setPremiumOpen(true), 300) }}
         onOpenSupport={() => { setProfileOpen(false); setTimeout(() => setSupportOpen(true), 300) }}
@@ -186,6 +275,7 @@ export default function Page() {
 
       <PremiumSheet open={premiumOpen} onOpenChange={setPremiumOpen} />
       <SupportSheet open={supportOpen} onOpenChange={setSupportOpen} />
+      {paymentBanner}
 
       {/* چنج‌لاگ مخزن گیت‌هاب */}
       <Dialog open={Boolean(repoDetails)} onOpenChange={(v) => !v && setRepoDetails(null)}>

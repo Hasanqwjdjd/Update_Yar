@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- deep-link بازگشت از درگاه پرداخت زارین‌پال (updatayar://payment) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="updatayar" android:host="payment" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -60,5 +68,28 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
         </intent>
+    </queries>
+
+    <!--
+        پکیج‌های کاتالوگ: حتی اگر گوشی (مثلاً شیائومی/MIUI) دسترسی لیست کامل را محدود کند،
+        این برنامه‌ها با getPackageInfo قابل شناسایی‌اند و اسکن حداقلی ممکن می‌شود
+    -->
+    <queries>
+        <package android:name="com.digikala" />
+        <package android:name="com.instagram.android" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="app.snapp.passenger" />
+        <package android:name="com.snappfood" />
+        <package android:name="app.bale.messenger" />
+        <package android:name="com.aparat" />
+        <package android:name="com.soroush.plus" />
+        <package android:name="com.torob.mobile" />
+        <package android:name="com.mellat.bbank" />
+        <package android:name="com.filimo" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="org.schabi.newpipe" />
+        <package android:name="dev.patrickgold.florisboard" />
     </queries>
 </manifest>

@@ -1,27 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Github as GithubIcon, Star, GitBranch, RefreshCcw, ArrowUpCircle, Download, CheckCircle2, ChevronLeft } from 'lucide-react'
+import { Github as GithubIcon, Star, GitBranch, RefreshCcw, ArrowUpCircle, Download, CheckCircle2, ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
-import { listRepos, syncReposLive } from '@/lib/local-db'
-import { InstalledApps, isNativeApp } from '@/lib/native'
+import { listRepos, syncReposLive, removeRepo } from '@/lib/local-db'
+import { openExternal } from '@/lib/native'
 import { faDigits, faNumber } from '@/lib/persian'
 import { cn } from '@/lib/utils'
+import { AddRepoDialog } from './add-repo-dialog'
 import type { GithubRepoItem } from '@/lib/types'
 
 const LANG_COLORS: Record<string, string> = {
   Kotlin: '#A97BFF', Java: '#b07219', Dart: '#00B4AB', TypeScript: '#3178c6', 'C++': '#f34b7d',
-}
-
-/** باز کردن لینک خارجی — روی گوشی در مرورگر سیستم، در وب در تب جدید */
-async function openExternal(url: string) {
-  if (isNativeApp()) {
-    try {
-      await InstalledApps.openInStore({ packageName: 'external', store: 'github', url })
-      return
-    } catch { /* ادامه با وب */ }
-  }
-  window.open(url, '_blank')
 }
 
 export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) => void }) {
@@ -30,6 +20,7 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
   const [filter, setFilter] = useState<'explore' | 'installed' | 'updates'>('explore')
   const [syncing, setSyncing] = useState(false)
   const [repos, setRepos] = useState<GithubRepoItem[] | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   // بارگذاری اولیه از کش + سینک زنده از گیت‌هاب
   useEffect(() => {
@@ -45,9 +36,9 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
   const sync = async () => {
     setSyncing(true)
     try {
-      const { repos: fresh, live } = await syncReposLive(useAppStore.getState().apps)
+      const { repos: fresh, live } = await syncReposLive(apps)
       setRepos(fresh)
-      showToast(live ? 'داده زنده از گیت‌هاب دریافت شد ✓' : 'آفلاین — از آخرین داده ذخیره‌شده استفاده شد')
+      showToast(live ? 'داده زنده از گیت‌هاب دریافت شد ✓' : 'اینترنت در دسترس نیست — از آخرین داده ذخیره‌شده استفاده شد')
     } catch {
       showToast('بررسی ریلیزها ناموفق بود')
     } finally {
@@ -68,13 +59,29 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
     showToast('صفحه ریلیزهای گیت‌هاب باز شد')
   }
 
+  const onDeleteCustom = (repo: GithubRepoItem) => {
+    const fresh = removeRepo(repo.id)
+    setRepos(fresh)
+    showToast(`مخزن «${repo.fullName}» حذف شد`)
+  }
+
   return (
     <div className="flex min-h-full flex-col pb-28">
       {/* هدر */}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 px-4 pt-3 pb-3 backdrop-blur-xl">
-        <div className="flex items-center justify-center gap-2">
-          <GithubIcon className="size-6" />
-          <h1 className="text-[19px] font-black">گیت‌هاب</h1>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setAddOpen(true)}
+            aria-label="افزودن مخزن"
+            className="flex size-10 items-center justify-center rounded-full text-foreground/80 hover:bg-muted"
+          >
+            <Plus className="size-[22px]" />
+          </button>
+          <div className="flex items-center gap-2">
+            <GithubIcon className="size-6" />
+            <h1 className="text-[19px] font-black">گیت‌هاب</h1>
+          </div>
+          <div className="w-10" />
         </div>
         <div className="mx-auto mt-2.5 flex w-fit gap-2 rounded-full bg-muted p-1">
           {([
@@ -102,10 +109,23 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
             <div key={i} className="h-32 animate-pulse rounded-2xl border border-border bg-card" />
           ))
         ) : list.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-14 text-center">
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
             <GithubIcon className="size-9 text-muted-foreground/40" />
-            <p className="text-[14px] font-bold">مخزنی در این دسته نیست</p>
-            <p className="text-[12px] text-muted-foreground">مخازن نصب‌شده شما از گیت‌هاب اینجا نمایش داده می‌شوند</p>
+            <p className="text-[14px] font-bold">
+              {filter === 'explore' ? 'هنوز مخزنی اضافه نشده' : 'مخزنی در این دسته نیست'}
+            </p>
+            <p className="max-w-[260px] text-[12px] leading-5 text-muted-foreground">
+              {filter === 'explore'
+                ? 'با دکمه‌ی + مخزن دلخواه‌تان را اضافه کنید تا آخرین ریلیزهایش اینجا دنبال شود'
+                : 'فیلتر را تغییر دهید یا مخزن جدیدی اضافه کنید'}
+            </p>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="mt-1 flex min-h-[40px] items-center gap-2 rounded-full bg-primary px-5 text-[12px] font-black text-primary-foreground"
+            >
+              <Plus className="size-4" />
+              افزودن مخزن
+            </button>
           </div>
         ) : (
           list.map((repo) => {
@@ -130,6 +150,15 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
                   {repo.isNew && (
                     <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-black text-primary-foreground">جدید</span>
                   )}
+                  {repo.custom && (
+                    <button
+                      onClick={() => onDeleteCustom(repo)}
+                      aria-label={`حذف مخزن ${repo.fullName}`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 hover:bg-muted hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
 
                 <p className="mt-2.5 line-clamp-2 text-[12px] leading-6 text-muted-foreground">{repo.description}</p>
@@ -144,7 +173,7 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
                     {faNumber(repo.stars)}
                   </span>
                   <span className="flex items-center gap-1">
-                    <GitBranch className="size-3.5" /> ریلیز پایدار
+                    <GitBranch className="size-3.5" /> {repo.latestVersion === '—' ? 'بدون ریلیز' : 'ریلیز پایدار'}
                   </span>
                 </div>
 
@@ -188,7 +217,7 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
 
       {/* دکمه سینک شناور */}
       <button
-        onClick={sync}
+        onClick={() => void sync()}
         disabled={syncing}
         aria-label="بررسی ریلیزهای جدید"
         className={cn(
@@ -196,8 +225,18 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
           useAppStore.getState().settings?.isPremium ? 'bottom-24' : 'bottom-[150px]'
         )}
       >
-        <RefreshCcw className={cn('size-6', syncing && 'animate-spin')} />
+        {syncing ? <Loader2 className="size-6 animate-spin" /> : <RefreshCcw className="size-6" />}
       </button>
+
+      <AddRepoDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAdded={(repo) => {
+          const fresh = listRepos()
+          setRepos(fresh)
+          showToast(`مخزن «${repo.fullName}» اضافه شد ✓`)
+        }}
+      />
     </div>
   )
 }

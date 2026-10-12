@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ArrowLeft, ShieldCheck, Store, Download, BellRing } from 'lucide-react'
 import { faDigits } from '@/lib/persian'
+import { APP_VERSION } from '@/lib/config'
 import { cn } from '@/lib/utils'
 
 const SLIDES = [
@@ -108,7 +109,7 @@ export function Onboarding({ onFinish }: { onFinish: () => void }) {
       </div>
 
       <p className="mt-4 text-center text-[10px] text-muted-foreground num">
-        نسخه {faDigits('1.3.1')} • سازگار با اندروید ۸ به بالا
+        نسخه {faDigits(APP_VERSION)} • سازگار با اندروید ۸ به بالا
       </p>
     </div>
   )

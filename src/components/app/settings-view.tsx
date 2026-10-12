@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Search, BellRing, Smartphone, ShieldCheck, FlaskConical, Moon, Palette, RefreshCcw, Clock, Wifi, Database, Store, Plus, Crown, HeartHandshake, Users, Info, ChevronLeft, FileText, Mail, Github as GithubIcon, Check } from 'lucide-react'
+import { User, Search, BellRing, Smartphone, ShieldCheck, FlaskConical, Moon, Palette, RefreshCcw, Clock, Wifi, Database, Store, Plus, Crown, HeartHandshake, Users, Info, ChevronLeft, FileText, Mail, Github as GithubIcon, Check, ExternalLink, KeyRound } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useAppStore } from '@/lib/store'
 import { faDigits } from '@/lib/persian'
 import { cn } from '@/lib/utils'
+import { openExternal } from '@/lib/native'
+import { APP_VERSION, REPO_URL, SUPPORT_EMAIL } from '@/lib/config'
+import { AddRepoDialog } from './add-repo-dialog'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -54,6 +58,45 @@ function Row({
   return <div data-keywords={keywords}>{inner}</div>
 }
 
+/** متن واقعی قوانین و حریم خصوصی */
+function PrivacyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[400px] rounded-3xl border-border bg-card" dir="rtl">
+        <DialogHeader className="items-start text-right">
+          <DialogTitle className="flex items-center gap-2 text-[16px]">
+            <FileText className="size-5 text-primary" />
+            قوانین و حریم خصوصی
+          </DialogTitle>
+          <DialogDescription className="text-right text-[12px] leading-6">
+            <b>۱. داده‌های شما:</b> آپدیت‌یار هیچ سروری ندارد و هیچ اطلاعاتی از شما ذخیره یا ارسال نمی‌کند.
+            لیست برنامه‌ها، تاریخچه، تنظیمات و رسیدهای پرداخت فقط در حافظه‌ی خود گوشی (localStorage) نگه‌داری می‌شود.
+            <br />
+            <b>۲. ارتباطات شبکه:</b> تنها درخواست‌های بیرونی عبارت‌اند از: API عمومی گیت‌هاب (برای دریافت
+            اطلاعات ریلیز مخازن) و درگاه پرداخت زارین‌پال (فقط هنگام خرید یا حمایت). هیچ داده‌ی شخصی
+            به هیچ سرویسی فرستاده نمی‌شود.
+            <br />
+            <b>۳. پرداخت:</b> پرداخت‌ها فقط از طریق درگاه رسمی زارین‌پال انجام می‌شود. اشتراک یا حمایت
+            تنها پس از تأیید رسمی درگاه (Verify) فعال می‌شود و رسید آن با کد رهگیری در برنامه قابل مشاهده است.
+            <br />
+            <b>۴. دسترسی‌ها:</b> دسترسی «برنامه‌های نصب‌شده» فقط برای نمایش نسخه‌ی فعلی برنامه‌ها و تشخیص
+            آپدیت استفاده می‌شود؛ دسترسی «نصب بسته» فقط هنگام به‌روزرسانی و با تأیید خودتان.
+            <br />
+            <b>۵. تماس:</b> برای هر سؤال یا حذف کامل داده‌ها، کافی است برنامه را از گوشی حذف کنید
+            (همه‌ی داده‌ها همراه آن پاک می‌شود) یا به <span dir="ltr">{SUPPORT_EMAIL}</span> بنویسید.
+          </DialogDescription>
+        </DialogHeader>
+        <button
+          onClick={() => onOpenChange(false)}
+          className="min-h-[44px] w-full rounded-2xl bg-primary text-[14px] font-black text-primary-foreground"
+        >
+          متوجه شدم
+        </button>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function SettingsView({
   onOpenProfile,
   onOpenPremium,
@@ -65,8 +108,13 @@ export function SettingsView({
 }) {
   const settings = useAppStore((s) => s.settings)
   const updateSettings = useAppStore((s) => s.updateSettings)
+  const refreshSettings = useAppStore((s) => s.refreshSettings)
   const showToast = useAppStore((s) => s.showToast)
   const [query, setQuery] = useState('')
+  const [privacyOpen, setPrivacyOpen] = useState(false)
+  const [addRepoOpen, setAddRepoOpen] = useState(false)
+  const [merchantOpen, setMerchantOpen] = useState(false)
+  const [merchant, setMerchant] = useState(settings?.zarinpalMerchant ?? '')
 
   const q = query.trim().toLowerCase()
   const matches = (kw?: string) => (q ? (kw ? kw.toLowerCase().includes(q) : false) : true)
@@ -74,6 +122,32 @@ export function SettingsView({
   if (!settings) return <div className="py-20 text-center text-muted-foreground">در حال بارگذاری تنظیمات...</div>
 
   const s = settings
+
+  const saveMerchant = async () => {
+    const v = merchant.trim()
+    if (v && v.length < 20) {
+      showToast('کد مرچنت معتبر نیست')
+      return
+    }
+    await updateSettings({ zarinpalMerchant: v })
+    refreshSettings()
+    setMerchantOpen(false)
+    showToast(v ? 'کد مرچنت ذخیره شد ✓' : 'کد مرچنت پاک شد')
+  }
+
+  const contact = () => {
+    void openExternal(`mailto:${SUPPORT_EMAIL}`).then((ok) => {
+      if (ok) showToast('اپ ایمیل باز شد')
+      else showToast(`اپ ایمیل پیدا نشد — آدرس: ${SUPPORT_EMAIL}`)
+    })
+  }
+
+  const openSource = () => {
+    void openExternal(REPO_URL).then((ok) => {
+      if (ok) showToast('گیت‌هاب در مرورگر باز شد')
+      else showToast('مرورگر باز نشد')
+    })
+  }
 
   return (
     <div className="flex min-h-full flex-col pb-28">
@@ -125,7 +199,7 @@ export function SettingsView({
             <Row
               icon={FlaskConical}
               title="آپدیت‌های بتا"
-              desc="آپدیت‌های بتا محرمانه می‌شود"
+              desc="اعلان نسخه‌های آزمایشی"
               keywords="بتا آزمایشی"
               control={<Switch checked={s.notifyBeta} onCheckedChange={(v) => updateSettings({ notifyBeta: v })} disabled={!s.notifications} />}
             />
@@ -195,7 +269,7 @@ export function SettingsView({
           <Section title="دانلود و بررسی">
             <Row
               icon={Wifi}
-              title="آپدیت خودکار فقط وای‌فای"
+              title="بررسی خودکار فقط وای‌فای"
               desc="بدون مصرف اینترنت سیم‌کارت"
               keywords="وای فای خودکار وایفای"
               control={<Switch checked={s.autoUpdateWifi} onCheckedChange={(v) => updateSettings({ autoUpdateWifi: v })} />}
@@ -257,9 +331,9 @@ export function SettingsView({
             <Row
               icon={Plus}
               title="افزودن منبع"
-              desc="منابع سفارشی مثل APKMirror"
+              desc="افزودن مخزن گیت‌هاب برای دنبال‌کردن ریلیزها"
               keywords="افزودن منبع سفارشی"
-              onClick={() => showToast('افزودن منبع سفارشی در نسخه بعدی فعال می‌شود')}
+              onClick={() => setAddRepoOpen(true)}
             />
           </Section>
         )}
@@ -284,7 +358,7 @@ export function SettingsView({
           <Row
             icon={HeartHandshake}
             title="حمایت از توسعه‌دهنده"
-            desc={s.supporterTier ? 'سطح حمایت شما فعال است ✓' : 'حمایت یکباره یا عضویت ماهانه'}
+            desc={s.supporterTier ? 'سطح حمایت شما فعال است ✓' : 'حمایت یکباره از طریق درگاه زارین‌پال'}
             keywords="حمایت مالی دونیت"
             onClick={onOpenSupport}
           />
@@ -295,13 +369,20 @@ export function SettingsView({
             keywords="حامیان"
             onClick={onOpenProfile}
           />
+          <Row
+            icon={KeyRound}
+            title="درگاه پرداخت زارین‌پال"
+            desc={s.zarinpalMerchant ? 'کد مرچنت تنظیم شده است ✓' : 'برای دریافت پرداخت‌ها، کد مرچنت را وارد کنید'}
+            keywords="درگاه پرداخت زارین پال مرچنت"
+            onClick={() => { setMerchant(s.zarinpalMerchant); setMerchantOpen(true) }}
+          />
         </Section>
 
         {/* درباره */}
-        <Section title="منابع آپدیت و درباره">
+        <Section title="درباره و تماس">
           <Row
             icon={Info}
-            title={`نسخه ${faDigits('1.3.1')} (آخرین)`}
+            title={`نسخه ${faDigits(APP_VERSION)}`}
             desc="تیم توسعه آپدیت‌یار"
             keywords="نسخه درباره"
           />
@@ -310,21 +391,22 @@ export function SettingsView({
             title="قوانین و حریم خصوصی"
             desc="ما هیچ داده شخصی جمع‌آوری نمی‌کنیم"
             keywords="قوانین حریم خصوصی"
-            onClick={() => showToast('قوانین کامل در انتشار نهایی ارائه می‌شود')}
+            onClick={() => setPrivacyOpen(true)}
           />
           <Row
             icon={Mail}
             title="تماس با ما"
-            desc="support@updateyar.ir"
+            desc={SUPPORT_EMAIL}
             keywords="تماس ایمیل پشتیبانی"
-            onClick={() => showToast('ایمیل شما در برنامه ایمیل باز می‌شود')}
+            onClick={contact}
           />
           <Row
             icon={GithubIcon}
             title="سورس پروژه در گیت‌هاب"
-            desc="github.com/updateyar/app"
+            desc="Hasanqwjdjd/Hasan-Vpn"
             keywords="گیت هاب سورس"
-            onClick={() => showToast('به‌زودی منتشر می‌شود!')}
+            onClick={openSource}
+            control={<ExternalLink className="size-4 shrink-0 text-muted-foreground" />}
           />
         </Section>
 
@@ -334,6 +416,50 @@ export function SettingsView({
           آپدیت‌یار © ۱۴۰۴ — همه حقوق محفوظ است
         </p>
       </div>
+
+      <PrivacyDialog open={privacyOpen} onOpenChange={setPrivacyOpen} />
+      <AddRepoDialog
+        open={addRepoOpen}
+        onOpenChange={setAddRepoOpen}
+        onAdded={(repo) => showToast(`مخزن «${repo.fullName}» اضافه شد — در تب گیت‌هاب ببینید ✓`)}
+      />
+
+      {/* دیالوگ مرچنت زارین‌پال */}
+      <Dialog open={merchantOpen} onOpenChange={setMerchantOpen}>
+        <DialogContent className="max-w-[380px] rounded-3xl border-border bg-card" dir="rtl">
+          <DialogHeader className="items-start text-right">
+            <DialogTitle className="flex items-center gap-2 text-[16px]">
+              <KeyRound className="size-5 text-primary" />
+              درگاه پرداخت زارین‌پال
+            </DialogTitle>
+            <DialogDescription className="text-right text-[12px] leading-6">
+              کد مرچنت از پنل zarinpal.com ← بخش درگاه‌ها قابل دریافت است.
+              این کد فقط روی همین گوشی ذخیره می‌شود و پرداخت‌های خرید اشتراک و حمایت به آن وصل می‌شوند.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            value={merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+            placeholder="کد مرچنت"
+            dir="ltr"
+            className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMerchantOpen(false)}
+              className="min-h-[44px] flex-1 rounded-2xl border border-border text-[13px] font-bold text-muted-foreground"
+            >
+              انصراف
+            </button>
+            <button
+              onClick={() => void saveMerchant()}
+              className="min-h-[44px] flex-[1.4] rounded-2xl bg-primary text-[13px] font-black text-primary-foreground"
+            >
+              ذخیره
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -49,6 +49,20 @@ export interface GithubRepoItem {
   installed: boolean
   changelog: string
   appPackage: string | null
+  /** مخزنی که خود کاربر اضافه کرده (قابل حذف) */
+  custom?: boolean
+}
+
+/** رسید پرداخت واقعی (پس از تأیید درگاه) — روی همین گوشی ذخیره می‌شود */
+export interface PaymentRecord {
+  id: string
+  kind: 'premium' | 'support'
+  plan?: string
+  amountToman: number
+  authority: string
+  refId: string
+  gateway: 'zarinpal'
+  date: string
 }
 
 export interface SupporterItem {
@@ -90,7 +104,11 @@ export interface SettingsT {
   sourceCustom: boolean
   isPremium: boolean
   premiumPlan: string | null
+  /** انقضای اشتراک (ISO) — برای پلن مادام‌العمر null */
+  premiumUntil: string | null
   supporterTier: string | null
+  /** کد مرچنت زارین‌پال توسعه‌دهنده — بدون آن پرداخت واقعی ممکن نیست */
+  zarinpalMerchant: string
   onboarded: boolean
 }
 

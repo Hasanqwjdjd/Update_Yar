@@ -41,6 +41,7 @@ export function HomeView({
   const updateAll = useAppStore((s) => s.updateAll)
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
+  const runScan = useAppStore((s) => s.runScan)
 
   const updateCount = apps.filter((a) => a.newVersion).length
 
@@ -145,7 +146,7 @@ export function HomeView({
         <div className="flex items-center justify-between">
           <h2 className="text-[14px] font-bold">فیدها بر اساس منبع</h2>
           <button
-            onClick={() => useAppStore.getState().setScanning(true)}
+            onClick={() => void runScan()}
             disabled={scanning}
             className="flex items-center gap-1 text-[11px] font-bold text-primary"
           >
@@ -211,7 +212,7 @@ export function HomeView({
 
       {/* دکمه شناور بررسی */}
       <button
-        onClick={() => useAppStore.getState().setScanning(true)}
+        onClick={() => void runScan()}
         disabled={scanning}
         aria-label="بررسی به‌روزرسانی"
         className={cn(
