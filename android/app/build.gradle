@@ -7,8 +7,8 @@ android {
         applicationId "com.updatayar.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +16,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            // کلید امضای رسمی «آپدیت‌یار» — داخل مخزن خصوصی نگهداری می‌شود
+            // اعتبار کلید: ۱۰٬۰۰۰ روز (~۲۷ سال) | پسورد: Updatayar@1404
+            storeFile file('updatayar-release.keystore')
+            storePassword 'Updatayar@1404'
+            keyAlias 'updatayar'
+            keyPassword 'Updatayar@1404'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 }

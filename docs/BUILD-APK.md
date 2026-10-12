@@ -49,7 +49,10 @@ git clone https://github.com/Hasanqwjdjd/Hasan-Vpn.git
 4. سمت راست، دکمه‌ی **Run workflow** را بزنید → **Run workflow** (برنچ `main` بماند)
 5. ۳ تا ۶ دقیقه صبر کنید تا کار تمام شود (نقطه‌ی سبز ✅ کنار اجرا)
 6. روی اجرای تمام‌شده کلیک کنید → پایین صفحه در قسمت **Artifacts** فایل **`updatayar-apk`** را دانلود کنید
-7. فایل ZIP دانلودشده را باز کنید — داخلش `app-debug.apk` است؛ به گوشی بفرستید و نصب کنید 🎉
+7. فایل ZIP دانلودشده را باز کنید — **دو فایل** داخلش است:
+   - `app-release.apk` ← **نسخه‌ی نهایی امضادار** (پیشنهادی — برای استفاده شخصی و انتشار در کافه‌بازار/مایکت) ⭐
+   - `app-debug.apk` ← نسخه‌ی دیباگ (فقط برای تست)
+8. فایل مورد نظر را به گوشی بفرستید و نصب کنید 🎉
 
 > 💡 هر بار که فایل‌های پوشه‌ی `android/` یا `capacitor.config.ts` تغییر کنند و push شود، APK جدید به‌صورت خودکار ساخته می‌شود.
 > ⚠️ برای مخازن خصوصی، ماهانه ۲۰۰۰ دقیقه‌ی رایگان دارید (هر ساخت حدود ۴ دقیقه مصرف می‌کند — یعنی حدود ۵۰۰ ساخت در ماه!).
@@ -85,65 +88,46 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## ۵. ساخت APK نهایی (Release — برای انتشار در کافه‌بازار/مایکت)
+## ۵. APK نهایی امضادار (Release — برای انتشار در کافه‌بازار/مایکت)
 
-فایل Debug برای انتشار مناسب نیست؛ باید نسخه‌ی **امضاشده (Signed)** بسازید.
+✅ **خبر خوب: از نسخه 1.1 به بعد، کلید امضا از قبل ساخته شده و داخل پروژه تنظیم شده است!**
 
-### گام ۱: ساخت کلید امضا (Keystore) — فقط یک‌بار
+### وضعیت فعلی (آماده و تنظیم‌شده)
 
-در ترمینال Android Studio (پایین پنجره، تب Terminal) اجرا کنید:
+| مورد | مقدار |
+|------|-------|
+| فایل کلید | `android/app/updatayar-release.keystore` (داخل مخزن خصوصی) |
+| نام مستعار (Alias) | `updatayar` |
+| رمز کلید و کی‌استور | `Updatayar@1404` |
+| اعتبار کلید | ۱۰٬۰۰۰ روز (حدود ۲۷ سال) |
+| امضای نسخه Release | در `android/app/build.gradle` تنظیم شده ✅ |
 
-```bash
-keytool -genkey -v -keystore updatayar-release.keystore -alias updatayar -keyalg RSA -keysize 2048 -validity 10000
-```
+یعنی:
 
-- یک رمز حداقل ۶ کاراکتری وارد و تکرار کنید.
-- سوالات (نام، سازمان، شهر…) را جواب دهید — می‌توانید Enter خالی بزنید به‌جز دو سوال آخر (باید با `yes` تأیید کنید).
-- ⚠️ **فایل `updatayar-release.keystore` را گم نکنید و رمزش را جایی ذخیره کنید!** بدون آن هیچ‌وقت نمی‌توانید آپدیت نسخه‌ی بعدی اپ را منتشر کنید.
+- **با روش GitHub Actions** (بخش ۲.۵): علاوه بر APK دیباگ، فایل `app-release.apk` امضادار هم به‌صورت خودکار در همان Artifact ساخته می‌شود — هیچ کار اضافه‌ای لازم نیست.
+- **با Android Studio**: فقط **Build → Build APK(s)** را بزنید؛ هر دو نسخه (debug و release امضادار) ساخته می‌شود.
 
-فایل ساخته‌شده را به مسیر `android/app/` منتقل کنید.
-
-### گام ۲: تنظیم امضا در Gradle
-
-فایل `android/app/build.gradle` را باز کنید و این بخش‌ها را اضافه کنید:
-
-```gradle
-android {
-    // ... بقیه تنظیمات ...
-
-    signingConfigs {
-        release {
-            storeFile file("updatayar-release.keystore")
-            storePassword "رمز_کی_استور"
-            keyAlias "updatayar"
-            keyPassword "رمز_کی_استور"
-        }
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-}
-```
-
-(به‌جای `رمز_کی_استور` همان رمزی را بگذارید که موقع ساخت keystore وارد کردید.)
-
-### گام ۳: گرفتن APK امضاشده
-
-1. منوی **Build → Build Bundle(s) / APK(s) → Build APK(s)** را بزنید.
-2. خروجی در این مسیر ساخته می‌شود:
+فایل نهایی و قابل انتشار در این مسیر ساخته می‌شود:
 
 ```
 android/app/build/outputs/apk/release/app-release.apk
 ```
 
-این فایل، نسخه‌ی نهایی و قابل انتشار است. 🎉
+### ⚠️ نکته حیاتی درباره کلید امضا
 
-> 💡 برای انتشار در کافه‌بازار، AAB بهتر است: منوی **Build → Generate Signed Bundle / APK → Android App Bundle** را هم می‌توانید استفاده کنید.
+- فایل `updatayar-release.keystore` را **هرگز گم نکنید** و رمز آن (`Updatayar@1404`) را جای امن ذخیره کنید!
+- بدون این کلید، هیچ‌وقت نمی‌توانید آپدیت رسمی برای نسخه‌های قبلی منتشر کنید (کافه‌بازار و گوشی‌ها امضا را چک می‌کنند).
+- اگر مخزن گیت‌هاب را عمومی (Public) کردید، اول کلید را از مخزن حذف و به GitHub Secrets منتقل کنید.
+- برای انتقال به سیستم شخصی: فایل `android/app/updatayar-release.keystore` را کپی و نگهداری کنید.
+
+### نصب نسخه Release روی گوشی
+
+اگر قبلاً نسخه Debug را نصب کرده‌اید، هنگام نصب نسخه Release پیام «برنامه نصب نشد» می‌بینید (امضای دو نسخه متفاوت است). راه‌حل ساده:
+
+1. نسخه قبلی را از گوشی حذف (Uninstall) کنید.
+2. نسخه Release را نصب کنید. از این به بعد همه آپدیت‌های امضادار بدون حذف، مستقیم روی همین نسخه نصب می‌شوند. ✅
+
+> 💡 برای انتشار در کافه‌بازار، فایل AAB بهتر است: در Android Studio از منوی **Build → Generate Signed Bundle / APK → Android App Bundle** استفاده کنید (همان کلید بالا).
 
 ---
 
