@@ -12,6 +12,7 @@ on:
     paths:
       - 'android/**'
       - 'capacitor.config.ts'
+      - 'package.json'
       - '.github/workflows/build-apk.yml'
 
 jobs:
@@ -28,6 +29,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      # کتابخانه‌ی Capacitor داخل node_modules لازم است
+      - name: نصب Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: نصب وابستگی‌های Node
+        run: bun install --frozen-lockfile
 
       - name: دسترسی اجرایی به gradlew
         run: chmod +x android/gradlew
