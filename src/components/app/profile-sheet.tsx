@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Crown, HeartHandshake, Users, Info, ChevronLeft, Sparkles, ShieldCheck, Github, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
+import { listSupporters } from '@/lib/local-db'
 import type { SupporterItem } from '@/lib/types'
 
 const TIER_LABELS: Record<string, string> = {
@@ -32,17 +33,11 @@ export function ProfileSheet({
 
   useEffect(() => {
     if (open && showSupporters && supporters.length === 0) {
-      let alive = true
-      fetch('/api/supporters')
-        .then((r) => r.json())
-        .then((data) => {
-          if (alive) setSupporters(data)
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (alive) setLoading(false)
-        })
-      return () => { alive = false }
+      const t = setTimeout(() => {
+        setSupporters(listSupporters())
+        setLoading(false)
+      }, 0)
+      return () => clearTimeout(t)
     }
   }, [open, showSupporters, supporters.length])
 

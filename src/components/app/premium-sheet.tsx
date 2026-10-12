@@ -6,6 +6,7 @@ import { Crown, Check, Zap, ShieldOff, RefreshCcw, Gauge, Loader2, PartyPopper, 
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
+import { activatePremium } from '@/lib/local-db'
 
 const PLANS = [
   { key: 'monthly' as const, label: 'ماهانه', price: 19000, note: 'یک ماه دسترسی کامل', discount: null as string | null },
@@ -39,12 +40,8 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     setTimeout(async () => {
       try {
         await updateSettings({ isPremium: true, premiumPlan: plan.key })
-        await fetch('/api/premium', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: plan.key, gateway }),
-        })
-      } catch { /* offline */ }
+        activatePremium(plan.key)
+      } catch { /* noop */ }
       setStep('done')
       showToast('اشتراک ویژه فعال شد! 🎉')
     }, 2200)

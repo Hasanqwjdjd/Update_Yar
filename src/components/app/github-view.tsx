@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Github as GithubIcon, Star, GitBranch, RefreshCcw, ArrowUpCircle, Download, CheckCircle2, Loader2, ChevronLeft } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import { listRepos, syncRepos } from '@/lib/local-db'
 import { faDigits, faNumber } from '@/lib/persian'
 import { cn } from '@/lib/utils'
 import type { GithubRepoItem } from '@/lib/types'
@@ -20,18 +21,19 @@ export function GithubView({ onOpenRepo }: { onOpenRepo: (repo: GithubRepoItem) 
   const [repos, setRepos] = useState<GithubRepoItem[] | null>(null)
   const [loadedOnce, setLoadedOnce] = useState(false)
 
-  // مخازن را از API می‌خوانیم (اگر هنوز لود نشده)
+  // مخازن را از دیتابیس محلی می‌خوانیم (اگر هنوز لود نشده)
   useMemo(() => {
     if (!loadedOnce) {
       setLoadedOnce(true)
-      fetch('/api/github').then((r) => r.json()).then(setRepos).catch(() => {})
+      setRepos(listRepos())
     }
   }, [loadedOnce])
 
   const sync = async () => {
     setSyncing(true)
     try {
-      const fresh = await fetch('/api/github', { method: 'POST' }).then((r) => r.json())
+      await new Promise((r) => setTimeout(r, 900))
+      const fresh = syncRepos()
       setRepos(fresh)
       showToast('ریلیزهای گیت‌هاب بررسی شد')
     } catch {

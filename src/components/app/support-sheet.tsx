@@ -6,6 +6,7 @@ import { HeartHandshake, Check, Loader2, PartyPopper, CreditCard, Wallet, Landma
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
+import { addSupporter, listSupporters } from '@/lib/local-db'
 import type { SupporterItem } from '@/lib/types'
 
 const ONE_TIME_AMOUNTS = [10000, 25000, 50000, 100000]
@@ -36,7 +37,8 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
 
   useEffect(() => {
     if (open && supporters.length === 0) {
-      fetch('/api/supporters').then((r) => r.json()).then(setSupporters).catch(() => {})
+      const t = setTimeout(() => setSupporters(listSupporters()), 0)
+      return () => clearTimeout(t)
     }
   }, [open, supporters.length])
 
@@ -47,15 +49,15 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     setTimeout(async () => {
       const tierKey = mode === 'tier' ? tier : 'one-time'
       try {
-        await fetch('/api/supporters', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name || 'کاربر ناشناس', tier: tierKey, amount: finalAmount, message }),
+        addSupporter({
+          name: name || 'کاربر ناشناس',
+          tier: tierKey as SupporterItem['tier'],
+          amount: finalAmount,
+          message: message || null,
         })
         await updateSettings({ supporterTier: tierKey })
-        const fresh = await fetch('/api/supporters').then((r) => r.json())
-        setSupporters(fresh)
-      } catch { /* offline */ }
+        setSupporters(listSupporters())
+      } catch { /* noop */ }
       setStep('done')
       showToast('حمایت شما ثبت شد. سپاسگزاریم! ❤️')
     }, 2200)

@@ -1,15 +1,13 @@
 {
 	"appId": "com.updatayar.app",
 	"appName": "آپدیت‌یار",
-	"webDir": "public",
+	"webDir": "out",
 	"android": {
 		"allowMixedContent": false,
 		"captureInput": true,
 		"webContentsDebuggingEnabled": false
 	},
 	"server": {
-		"url": "https://p1cnf8f921h0-d.space-z.ai/",
-		"cleartext": false,
 		"androidScheme": "https"
 	}
 }

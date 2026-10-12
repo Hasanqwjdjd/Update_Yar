@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Megaphone, X, BadgePercent } from 'lucide-react'
+import { listAds } from '@/lib/local-db'
 import type { AdItemT } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -13,19 +14,14 @@ export function AdBanner({ isPremium, hidden = false }: { isPremium: boolean; hi
 
   useEffect(() => {
     if (isPremium) return
-    let alive = true
-    const load = () =>
-      fetch('/api/ads')
-        .then((r) => r.json())
-        .then((ads: AdItemT[]) => {
-          if (!alive) return
-          const banners = ads.filter((a) => a.placement === 'banner')
-          if (banners.length) setAd(banners[Math.floor(Math.random() * banners.length)])
-        })
-        .catch(() => {})
+    const load = () => {
+      const ads = listAds()
+      const banners = ads.filter((a) => a.placement === 'banner')
+      if (banners.length) setAd(banners[Math.floor(Math.random() * banners.length)])
+    }
     load()
     const t = setInterval(load, 30000)
-    return () => { alive = false; clearInterval(t) }
+    return () => clearInterval(t)
   }, [isPremium])
 
   if (isPremium || dismissed || closed || !ad || hidden) return null

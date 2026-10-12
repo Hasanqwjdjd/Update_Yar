@@ -17,6 +17,7 @@ import { PremiumSheet } from '@/components/app/premium-sheet'
 import { SupportSheet } from '@/components/app/support-sheet'
 import { AdBanner } from '@/components/app/ad-banner'
 import { faDigits, faNumber } from '@/lib/persian'
+import { listAds, scanUpdates } from '@/lib/local-db'
 import type { AdItemT, GithubRepoItem, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +40,7 @@ export default function Page() {
 
   useEffect(() => {
     void loadAll()
-    fetch('/api/ads').then((r) => r.json()).then(setAds).catch(() => {})
+    setAds(listAds())
   }, [loadAll])
 
   // اعمال تم روی سند
@@ -72,8 +73,9 @@ export default function Page() {
     if (useAppStore.getState().scanning) return
     setScanning(true)
     try {
-      const res = await fetch('/api/scan', { method: 'POST' })
-      const data = await res.json()
+      // کمی تأخیر برای حس واقعی «بررسی» رادار
+      await new Promise((r) => setTimeout(r, 1400))
+      const data = scanUpdates()
       applyScanResult(data.apps, data.history)
       showToast(
         data.discovered > 0
@@ -81,7 +83,7 @@ export default function Page() {
           : 'همه برنامه‌ها به‌روز هستند ✓'
       )
     } catch {
-      showToast('بررسی آپدیت‌ها ناموفق بود — اتصال اینترنت را چک کنید')
+      showToast('بررسی آپدیت‌ها ناموفق بود')
     } finally {
       setScanning(false)
     }

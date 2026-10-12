@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import type { AppSource, DownloadTask, HistoryItem, InstalledApp, SettingsT } from '@/lib/types'
+import { addHistory, getSettings, listApps, listHistory, updateSettings as dbUpdateSettings } from '@/lib/local-db'
 
 export type View = 'home' | 'updates' | 'github' | 'history' | 'settings'
 
@@ -82,14 +83,9 @@ export const useAppStore = create<AppStore>((set, get) => {
     scanning: false,
     loadAll: async () => {
       try {
-        const [appsRes, historyRes, settingsRes] = await Promise.all([
-          fetch('/api/apps'),
-          fetch('/api/history'),
-          fetch('/api/settings'),
-        ])
-        const apps = await appsRes.json() as InstalledApp[]
-        const history = await historyRes.json() as HistoryItem[]
-        const settings = await settingsRes.json() as SettingsT
+        const apps = listApps()
+        const history = listHistory()
+        const settings = getSettings()
         set({ apps, history, settings, loading: false })
         startEngine()
       } catch {
@@ -214,31 +210,21 @@ export const useAppStore = create<AppStore>((set, get) => {
     },
     recordHistory: async (task) => {
       try {
-        const res = await fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            appName: task.name, iconColor: task.iconColor, iconType: task.iconType,
-            package: task.appId, fromVersion: task.fromVersion, toVersion: task.toVersion,
-            source: task.source, sizeMB: task.sizeMB, status: 'completed',
-          }),
+        const item = addHistory({
+          appName: task.name, iconColor: task.iconColor, iconType: task.iconType,
+          package: task.appId, fromVersion: task.fromVersion, toVersion: task.toVersion,
+          source: task.source, sizeMB: task.sizeMB, status: 'completed',
+          date: new Date().toISOString(),
         })
-        const item = (await res.json()) as HistoryItem
         set({ history: [item, ...get().history] })
-      } catch { /* offline */ }
+      } catch { /* noop */ }
     },
 
     updateSettings: async (patch) => {
       const current = get().settings
       if (!current) return
-      set({ settings: { ...current, ...patch } })
-      try {
-        await fetch('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patch),
-        })
-      } catch { /* offline */ }
+      const fresh = dbUpdateSettings(patch)
+      set({ settings: { ...current, ...fresh } })
     },
 
     toast: null,

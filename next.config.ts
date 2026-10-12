@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
+// خروجی استاتیک: کل اپ در پوشه out/ ساخته می‌شود و داخل APK قرار می‌گیرد
 const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
+  output: "export",
+  images: {
+    unoptimized: true,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
