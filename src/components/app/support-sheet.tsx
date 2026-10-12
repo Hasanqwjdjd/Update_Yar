@@ -2,25 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { HeartHandshake, Check, Loader2, PartyPopper, AlertTriangle, Hourglass, KeyRound, Users } from 'lucide-react'
+import { HeartHandshake, Check, Loader2, PartyPopper, AlertTriangle, ReceiptText, Users, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
 import { listSupporters } from '@/lib/local-db'
 import {
-  startZarinpalPayment, checkPendingPayment, cancelPendingPayment,
-  hasPendingPayment,
+  startDonitoPayment, confirmDonitoPayment, cancelPendingPayment,
+  getPendingPayment,
 } from '@/lib/payment'
 import type { SupporterItem } from '@/lib/types'
 
 const ONE_TIME_AMOUNTS = [10000, 25000, 50000, 100000]
 
-type Step = 'form' | 'merchant' | 'waiting' | 'done'
+type Step = 'form' | 'confirm' | 'done'
 
 export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const settings = useAppStore((s) => s.settings)
-  const updateSettings = useAppStore((s) => s.updateSettings)
-  const refreshSettings = useAppStore((s) => s.refreshSettings)
   const showToast = useAppStore((s) => s.showToast)
   const paymentDone = useAppStore((s) => s.paymentDone)
 
@@ -28,10 +25,10 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const [customAmount, setCustomAmount] = useState('')
   const [name, setName] = useState('')
   const [message, setMessage] = useState('')
-  const [merchant, setMerchant] = useState(settings?.zarinpalMerchant ?? '')
   const [step, setStep] = useState<Step>('form')
   const [busy, setBusy] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
+  const [refId, setRefId] = useState('')
   const [supporters, setSupporters] = useState<SupporterItem[]>([])
 
   useEffect(() => {
@@ -41,7 +38,15 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   }, [open, supporters.length])
 
-  // رسید پرداخت (وقتی کاربر از درگاه برگردد)
+  // اگر پرداختی در انتظار است (کاربر از درگاه برگشته) → مستقیم به مرحله‌ی رسید
+  useEffect(() => {
+    if (open && step === 'form' && getPendingPayment()) {
+      const t = setTimeout(() => setStep('confirm'), 0)
+      return () => clearTimeout(t)
+    }
+  }, [open, step])
+
+  // رسید پرداخت
   useEffect(() => {
     if (paymentDone?.kind === 'support') {
       const t = setTimeout(() => {
@@ -56,35 +61,17 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const reset = () => {
     onOpenChange(false)
-    setTimeout(() => { setStep('form'); setPayError(null) }, 400)
-  }
-
-  const saveMerchant = async () => {
-    const v = merchant.trim()
-    if (v.length < 20) {
-      showToast('کد مرچنت معتبر نیست')
-      return
-    }
-    await updateSettings({ zarinpalMerchant: v })
-    refreshSettings()
-    setStep('form')
-    void pay()
+    setTimeout(() => { setStep('form'); setPayError(null); setRefId('') }, 400)
   }
 
   const pay = async () => {
-    const m = useAppStore.getState().settings?.zarinpalMerchant ?? ''
-    if (!m) {
-      setStep('merchant')
-      return
-    }
     if (!Number.isFinite(finalAmount) || finalAmount < 1000) {
       showToast('مبلغ را درست وارد کنید (حداقل ۱٬۰۰۰ تومان)')
       return
     }
     setBusy(true)
     setPayError(null)
-    const res = await startZarinpalPayment({
-      merchantId: m,
+    const res = await startDonitoPayment({
       amountToman: finalAmount,
       description: 'حمایت مالی از توسعه آپدیت‌یار',
       kind: 'support',
@@ -92,37 +79,36 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     })
     setBusy(false)
     if (res.ok) {
-      setStep('waiting')
+      setStep('confirm')
     } else {
       setPayError(res.error)
       showToast(res.error)
     }
   }
 
-  const manualCheck = async () => {
+  const confirmPay = () => {
     setBusy(true)
-    const r = await checkPendingPayment()
+    setPayError(null)
+    const r = confirmDonitoPayment(refId)
     setBusy(false)
     if (r.ok && r.done) {
-      refreshSettings()
       useAppStore.getState().setPaymentDone(r.done)
       setStep('done')
       setSupporters(listSupporters())
-    } else if (r.error === 'none') {
-      setStep('form')
     } else {
-      showToast('هنوز پرداختی ثبت نشده — در صفحه زارین‌پال پرداخت را کامل کنید')
+      setPayError(r.error ?? 'ثبت حمایت ناموفق بود')
     }
   }
 
   const abandonPayment = () => {
     cancelPendingPayment()
     setStep('form')
+    setRefId('')
     showToast('پرداخت لغو شد')
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(() => { setStep('form'); setPayError(null) }, 400) }}>
+    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(() => { setStep('form'); setPayError(null); setRefId('') }, 400) }}>
       <SheetContent side="bottom" className="mx-auto max-w-[430px] rounded-t-3xl border-border bg-card px-0 pt-2 pb-8 [&>button]:left-4 [&>button]:right-auto">
         <SheetHeader className="px-5 pb-2 text-right">
           <SheetTitle className="flex items-center gap-2 text-lg">
@@ -183,12 +169,12 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               disabled={busy}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-black text-primary-foreground active:scale-[0.98] disabled:opacity-50"
             >
-              {busy ? <Loader2 className="size-5 animate-spin" /> : <HeartHandshake className="size-5" />}
-              {busy ? 'در حال اتصال به درگاه...' : `پرداخت ${faNumber(finalAmount)} تومان از طریق زارین‌پال`}
+              {busy ? <Loader2 className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
+              {busy ? 'در حال باز کردن درگاه...' : `پرداخت ${faNumber(finalAmount)} تومان از طریق درگاه آنلاین`}
             </button>
             <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">
-              پرداخت از درگاه رسمی زارین‌پال انجام می‌شود و فقط پس از تأیید درگاه،
-              نام شما در دیوار حامیان همین برنامه ثبت می‌شود.
+              پرداخت از درگاه رسمی برنامه (دونیتو) انجام و مستقیماً به حساب توسعه‌دهنده واریز می‌شود؛
+              پس از پرداخت، با وارد کردن شماره رسید، نام شما در دیوار حامیان ثبت می‌شود.
             </p>
 
             {supporters.length > 0 && (
@@ -206,43 +192,31 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           </div>
         )}
 
-        {step === 'merchant' && (
+        {step === 'confirm' && (
           <div className="max-h-[62vh] overflow-y-auto px-5 pb-4">
-            <button onClick={() => setStep('form')} className="mb-3 text-xs text-primary">→ بازگشت</button>
-            <div className="mb-3 flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
-              <KeyRound className="mt-0.5 size-4 shrink-0 text-amber-500" />
-              <p className="text-[11px] leading-5 text-amber-600 dark:text-amber-400">
-                برای دریافت واقعی حمایت‌ها، «کد مرچنت» زارین‌پال لازم است (پنل zarinpal.com ← درگاه‌ها).
-                کد فقط روی همین گوشی ذخیره می‌شود.
+            <div className="mb-3 flex items-start gap-2 rounded-2xl border border-primary/30 bg-primary/10 p-3">
+              <ReceiptText className="mt-0.5 size-4 shrink-0 text-primary" />
+              <p className="text-[11px] leading-5 text-foreground/80">
+                صفحه‌ی درگاه باز شد. مبلغ <b className="num">{faNumber(finalAmount)} تومان</b> را پرداخت کنید،
+                سپس به اینجا برگردید و <b>شماره رسید/پیگیری</b> درگاه را وارد کنید تا حمایت شما ثبت شود.
               </p>
             </div>
+            <button
+              onClick={() => void pay()}
+              className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-border bg-background/50 py-2.5 text-[12px] font-bold text-primary"
+            >
+              <ExternalLink className="size-4" />
+              صفحه‌ی درگاه باز نشد؟ دوباره باز کن
+            </button>
+
             <input
-              value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
-              placeholder="کد مرچنت زارین‌پال"
+              inputMode="numeric"
+              value={refId}
+              onChange={(e) => { setRefId(e.target.value); setPayError(null) }}
+              placeholder="شماره رسید / پیگیری پرداخت"
               dir="ltr"
               className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
             />
-            <button
-              onClick={() => void saveMerchant()}
-              className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-black text-primary-foreground active:scale-[0.98]"
-            >
-              ذخیره و ادامه به پرداخت
-            </button>
-          </div>
-        )}
-
-        {step === 'waiting' && (
-          <div className="max-h-[62vh] px-5 pb-4">
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/50 p-5 text-center">
-              <Hourglass className="size-9 text-primary" />
-              <p className="text-[14px] font-black">صفحه پرداخت زارین‌پال باز شد</p>
-              <p className="text-[12px] leading-6 text-muted-foreground">
-                پرداخت را در مرورگر کامل کنید؛ همین که به برنامه برگردید، حمایت شما
-                به‌صورت خودکار بررسی و ثبت می‌شود.
-              </p>
-              <p className="num text-[11px] text-muted-foreground">مبلغ: {faNumber(finalAmount)} تومان</p>
-            </div>
             {payError && (
               <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-destructive/10 p-2.5 text-[11px] leading-5 text-destructive">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
@@ -250,12 +224,12 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               </p>
             )}
             <button
-              onClick={() => void manualCheck()}
-              disabled={busy}
+              onClick={confirmPay}
+              disabled={busy || refId.trim().length < 4}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-black text-primary-foreground disabled:opacity-50"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              پرداخت را بررسی کن
+              ثبت رسید و درج در دیوار حامیان
             </button>
             <button
               onClick={abandonPayment}
@@ -273,9 +247,9 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
             <p className="text-lg font-black">حمایت شما تأیید و ثبت شد!</p>
             <p className="text-center text-[13px] leading-6 text-muted-foreground">
-              {(name || 'دوست عزیز')}، از شما سپاسگزاریم. نام شما در دیوار حامیان ثبت شد ❤️
+              از شما سپاسگزاریم. نام شما در دیوار حامیان ثبت شد ❤️
               <br />
-              کد رهگیری: <b className="num">{faDigits(paymentDone.refId)}</b>
+              شماره رسید درگاه: <b className="num">{faDigits(paymentDone.refId)}</b>
             </p>
             <div className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-muted px-3 py-2 text-[11px] text-muted-foreground">
               <Users className="size-3.5" />

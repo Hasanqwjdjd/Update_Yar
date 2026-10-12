@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Search, BellRing, Smartphone, ShieldCheck, FlaskConical, Moon, Palette, RefreshCcw, Clock, Wifi, Database, Store, Plus, Crown, HeartHandshake, Users, Info, ChevronLeft, FileText, Mail, Github as GithubIcon, Check, ExternalLink, KeyRound } from 'lucide-react'
+import { User, Search, BellRing, Smartphone, ShieldCheck, FlaskConical, Moon, Palette, RefreshCcw, Clock, Wifi, Database, Store, Plus, Crown, HeartHandshake, Users, Info, ChevronLeft, FileText, Mail, Github as GithubIcon, Check } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useAppStore } from '@/lib/store'
 import { faDigits } from '@/lib/persian'
 import { cn } from '@/lib/utils'
 import { openExternal } from '@/lib/native'
-import { APP_VERSION, REPO_URL, SUPPORT_EMAIL } from '@/lib/config'
+import { APP_VERSION, SUPPORT_EMAIL } from '@/lib/config'
 import { AddRepoDialog } from './add-repo-dialog'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -73,14 +73,16 @@ function PrivacyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
             لیست برنامه‌ها، تاریخچه، تنظیمات و رسیدهای پرداخت فقط در حافظه‌ی خود گوشی (localStorage) نگه‌داری می‌شود.
             <br />
             <b>۲. ارتباطات شبکه:</b> تنها درخواست‌های بیرونی عبارت‌اند از: API عمومی گیت‌هاب (برای دریافت
-            اطلاعات ریلیز مخازن) و درگاه پرداخت زارین‌پال (فقط هنگام خرید یا حمایت). هیچ داده‌ی شخصی
+            اطلاعات ریلیز مخازن) و صفحه‌ی درگاه پرداخت دونیتو (فقط هنگام خرید یا حمایت). هیچ داده‌ی شخصی
             به هیچ سرویسی فرستاده نمی‌شود.
             <br />
-            <b>۳. پرداخت:</b> پرداخت‌ها فقط از طریق درگاه رسمی زارین‌پال انجام می‌شود. اشتراک یا حمایت
-            تنها پس از تأیید رسمی درگاه (Verify) فعال می‌شود و رسید آن با کد رهگیری در برنامه قابل مشاهده است.
+            <b>۳. پرداخت:</b> پرداخت‌ها فقط از طریق درگاه آنلاین رسمی برنامه (دونیتو) انجام و مستقیماً
+            به حساب توسعه‌دهنده واریز می‌شود. اشتراک یا حمایت با وارد کردن شماره رسید درگاه فعال می‌شود
+            و رسید آن در برنامه قابل مشاهده است.
             <br />
             <b>۴. دسترسی‌ها:</b> دسترسی «برنامه‌های نصب‌شده» فقط برای نمایش نسخه‌ی فعلی برنامه‌ها و تشخیص
-            آپدیت استفاده می‌شود؛ دسترسی «نصب بسته» فقط هنگام به‌روزرسانی و با تأیید خودتان.
+            آپدیت استفاده می‌شود؛ دسترسی «نصب بسته» فقط هنگام به‌روزرسانی و با تأیید خودتان؛ دسترسی
+            «اعلان‌ها» فقط برای اطلاع‌رسانی آپدیت‌ها.
             <br />
             <b>۵. تماس:</b> برای هر سؤال یا حذف کامل داده‌ها، کافی است برنامه را از گوشی حذف کنید
             (همه‌ی داده‌ها همراه آن پاک می‌شود) یا به <span dir="ltr">{SUPPORT_EMAIL}</span> بنویسید.
@@ -108,13 +110,10 @@ export function SettingsView({
 }) {
   const settings = useAppStore((s) => s.settings)
   const updateSettings = useAppStore((s) => s.updateSettings)
-  const refreshSettings = useAppStore((s) => s.refreshSettings)
   const showToast = useAppStore((s) => s.showToast)
   const [query, setQuery] = useState('')
   const [privacyOpen, setPrivacyOpen] = useState(false)
   const [addRepoOpen, setAddRepoOpen] = useState(false)
-  const [merchantOpen, setMerchantOpen] = useState(false)
-  const [merchant, setMerchant] = useState(settings?.zarinpalMerchant ?? '')
 
   const q = query.trim().toLowerCase()
   const matches = (kw?: string) => (q ? (kw ? kw.toLowerCase().includes(q) : false) : true)
@@ -123,29 +122,10 @@ export function SettingsView({
 
   const s = settings
 
-  const saveMerchant = async () => {
-    const v = merchant.trim()
-    if (v && v.length < 20) {
-      showToast('کد مرچنت معتبر نیست')
-      return
-    }
-    await updateSettings({ zarinpalMerchant: v })
-    refreshSettings()
-    setMerchantOpen(false)
-    showToast(v ? 'کد مرچنت ذخیره شد ✓' : 'کد مرچنت پاک شد')
-  }
-
   const contact = () => {
     void openExternal(`mailto:${SUPPORT_EMAIL}`).then((ok) => {
       if (ok) showToast('اپ ایمیل باز شد')
       else showToast(`اپ ایمیل پیدا نشد — آدرس: ${SUPPORT_EMAIL}`)
-    })
-  }
-
-  const openSource = () => {
-    void openExternal(REPO_URL).then((ok) => {
-      if (ok) showToast('گیت‌هاب در مرورگر باز شد')
-      else showToast('مرورگر باز نشد')
     })
   }
 
@@ -253,12 +233,24 @@ export function SettingsView({
             <Row
               icon={Clock}
               title="زمان‌بندی تم"
-              desc={s.scheduledTheme === 'night' ? 'تم تیره فقط شب‌ها' : s.scheduledTheme === 'auto' ? 'خودکار بر اساس ساعت' : 'بدون زمان‌بندی'}
-              keywords="زمان‌بندی تم"
+              desc={
+                s.scheduledTheme === 'night'
+                  ? 'تم تیره خودکار ساعت ۲۰ شب تا ۷ صبح ✓'
+                  : s.scheduledTheme === 'auto'
+                    ? 'خودکار بر اساس تم گوشی'
+                    : 'بدون زمان‌بندی — لمس کنید برای «تم تیره در شب»'
+              }
+              keywords="زمان‌بندی تم شب روز تاریک"
               onClick={() => {
                 const next = s.scheduledTheme === 'manual' ? 'night' : s.scheduledTheme === 'night' ? 'auto' : 'manual'
                 updateSettings({ scheduledTheme: next })
-                showToast(`زمان‌بندی تم: ${next === 'night' ? 'فقط شب‌ها' : next === 'auto' ? 'خودکار' : 'خاموش'}`)
+                showToast(
+                  next === 'night'
+                    ? 'زمان‌بندی فعال شد: تم تیره از ساعت ۲۰ شب تا ۷ صبح ✓'
+                    : next === 'auto'
+                      ? 'زمان‌بندی: خودکار بر اساس تم گوشی'
+                      : 'زمان‌بندی تم خاموش شد'
+                )
               }}
             />
           </Section>
@@ -358,7 +350,7 @@ export function SettingsView({
           <Row
             icon={HeartHandshake}
             title="حمایت از توسعه‌دهنده"
-            desc={s.supporterTier ? 'سطح حمایت شما فعال است ✓' : 'حمایت یکباره از طریق درگاه زارین‌پال'}
+            desc={s.supporterTier ? 'سطح حمایت شما فعال است ✓' : 'حمایت یکباره از طریق درگاه آنلاین'}
             keywords="حمایت مالی دونیت"
             onClick={onOpenSupport}
           />
@@ -368,13 +360,6 @@ export function SettingsView({
             desc="لیست حمایت‌کنندگان برنامه"
             keywords="حامیان"
             onClick={onOpenProfile}
-          />
-          <Row
-            icon={KeyRound}
-            title="درگاه پرداخت زارین‌پال"
-            desc={s.zarinpalMerchant ? 'کد مرچنت تنظیم شده است ✓' : 'برای دریافت پرداخت‌ها، کد مرچنت را وارد کنید'}
-            keywords="درگاه پرداخت زارین پال مرچنت"
-            onClick={() => { setMerchant(s.zarinpalMerchant); setMerchantOpen(true) }}
           />
         </Section>
 
@@ -400,14 +385,6 @@ export function SettingsView({
             keywords="تماس ایمیل پشتیبانی"
             onClick={contact}
           />
-          <Row
-            icon={GithubIcon}
-            title="سورس پروژه در گیت‌هاب"
-            desc="Hasanqwjdjd/Hasan-Vpn"
-            keywords="گیت هاب سورس"
-            onClick={openSource}
-            control={<ExternalLink className="size-4 shrink-0 text-muted-foreground" />}
-          />
         </Section>
 
         <p className="py-6 text-center text-[10px] leading-5 text-muted-foreground">
@@ -423,43 +400,6 @@ export function SettingsView({
         onOpenChange={setAddRepoOpen}
         onAdded={(repo) => showToast(`مخزن «${repo.fullName}» اضافه شد — در تب گیت‌هاب ببینید ✓`)}
       />
-
-      {/* دیالوگ مرچنت زارین‌پال */}
-      <Dialog open={merchantOpen} onOpenChange={setMerchantOpen}>
-        <DialogContent className="max-w-[380px] rounded-3xl border-border bg-card" dir="rtl">
-          <DialogHeader className="items-start text-right">
-            <DialogTitle className="flex items-center gap-2 text-[16px]">
-              <KeyRound className="size-5 text-primary" />
-              درگاه پرداخت زارین‌پال
-            </DialogTitle>
-            <DialogDescription className="text-right text-[12px] leading-6">
-              کد مرچنت از پنل zarinpal.com ← بخش درگاه‌ها قابل دریافت است.
-              این کد فقط روی همین گوشی ذخیره می‌شود و پرداخت‌های خرید اشتراک و حمایت به آن وصل می‌شوند.
-            </DialogDescription>
-          </DialogHeader>
-          <input
-            value={merchant}
-            onChange={(e) => setMerchant(e.target.value)}
-            placeholder="کد مرچنت"
-            dir="ltr"
-            className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMerchantOpen(false)}
-              className="min-h-[44px] flex-1 rounded-2xl border border-border text-[13px] font-bold text-muted-foreground"
-            >
-              انصراف
-            </button>
-            <button
-              onClick={() => void saveMerchant()}
-              className="min-h-[44px] flex-[1.4] rounded-2xl bg-primary text-[13px] font-black text-primary-foreground"
-            >
-              ذخیره
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

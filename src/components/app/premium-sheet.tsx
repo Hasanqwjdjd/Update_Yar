@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { Crown, Check, Zap, RefreshCcw, Gauge, Loader2, PartyPopper, KeyRound, ExternalLink, AlertTriangle, Hourglass } from 'lucide-react'
+import { Crown, Check, Zap, RefreshCcw, Gauge, Loader2, PartyPopper, ExternalLink, AlertTriangle, ReceiptText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
-import { updateSettings, isPremiumActive } from '@/lib/local-db'
+import { isPremiumActive } from '@/lib/local-db'
 import {
-  startZarinpalPayment, checkPendingPayment, cancelPendingPayment,
-  hasPendingPayment,
+  startDonitoPayment, confirmDonitoPayment, cancelPendingPayment,
+  getPendingPayment,
 } from '@/lib/payment'
 
 const PLANS = [
@@ -25,11 +25,10 @@ const FEATURES = [
   { icon: Check, text: 'پشتیبانی از انتشارهای نسخه‌های آینده بدون محدودیت' },
 ]
 
-type Step = 'plans' | 'merchant' | 'waiting' | 'done'
+type Step = 'plans' | 'confirm' | 'done'
 
 export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const settings = useAppStore((s) => s.settings)
-  const updateSettingsStore = useAppStore((s) => s.updateSettings)
   const refreshSettings = useAppStore((s) => s.refreshSettings)
   const showToast = useAppStore((s) => s.showToast)
   const paymentDone = useAppStore((s) => s.paymentDone)
@@ -38,58 +37,27 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const [step, setStep] = useState<Step>('plans')
   const [plan, setPlan] = useState<(typeof PLANS)[number]>(PLANS[1])
-  const [merchant, setMerchant] = useState(settings?.zarinpalMerchant ?? '')
   const [busy, setBusy] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
+  const [refId, setRefId] = useState('')
 
-  // اگر پرداخت از سر گرفته شد (کاربر از درگاه برگشت) → نمایش رسید
+  // اگر پرداخت قبلاً در انتظار است (کاربر از درگاه برگشته) → مستقیم به مرحله‌ی رسید
   useEffect(() => {
-    if (paymentDone?.kind === 'premium') {
-      const t = setTimeout(() => setStep('done'), 0)
+    if (open && step === 'plans' && getPendingPayment()) {
+      const t = setTimeout(() => setStep('confirm'), 0)
       return () => clearTimeout(t)
     }
-  }, [paymentDone])
-
-  // اگر پرداخت در انتظار وجود دارد و کاربر برگشته → بررسی
-  useEffect(() => {
-    if (open && step === 'plans' && hasPendingPayment() && document.visibilityState === 'visible') {
-      void (async () => {
-        const r = await checkPendingPayment()
-        if (r.ok && r.done) {
-          refreshSettings()
-          useAppStore.getState().setPaymentDone(r.done)
-        }
-      })()
-    }
-  }, [open, step, refreshSettings])
+  }, [open, step])
 
   const reset = () => {
     onOpenChange(false)
-    setTimeout(() => { setStep('plans'); setPayError(null) }, 400)
-  }
-
-  const saveMerchant = async () => {
-    const v = merchant.trim()
-    if (v.length < 20) {
-      showToast('کد مرچنت معتبر نیست (معمولاً یک رشته‌ی طولانی مثل a1b2c3... است)')
-      return
-    }
-    await updateSettingsStore({ zarinpalMerchant: v })
-    refreshSettings()
-    setStep('plans')
-    void beginPay()
+    setTimeout(() => { setStep('plans'); setPayError(null); setRefId('') }, 400)
   }
 
   const beginPay = async () => {
-    const m = useAppStore.getState().settings?.zarinpalMerchant ?? ''
-    if (!m) {
-      setStep('merchant')
-      return
-    }
     setBusy(true)
     setPayError(null)
-    const res = await startZarinpalPayment({
-      merchantId: m,
+    const res = await startDonitoPayment({
       amountToman: plan.price,
       description: `خرید اشتراک ${plan.label} آپدیت‌یار ویژه`,
       kind: 'premium',
@@ -97,37 +65,36 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     })
     setBusy(false)
     if (res.ok) {
-      setStep('waiting')
+      setStep('confirm')
     } else {
       setPayError(res.error)
       showToast(res.error)
     }
   }
 
-  const manualCheck = async () => {
+  const confirmPay = () => {
     setBusy(true)
-    const r = await checkPendingPayment()
+    setPayError(null)
+    const r = confirmDonitoPayment(refId)
     setBusy(false)
     if (r.ok && r.done) {
       refreshSettings()
       useAppStore.getState().setPaymentDone(r.done)
       setStep('done')
-    } else if (r.error === 'none') {
-      showToast('پرداختی در انتظار بررسی نیست')
-      setStep('plans')
     } else {
-      showToast('هنوز پرداختی ثبت نشده — در صفحه زارین‌پال پرداخت را کامل کنید')
+      setPayError(r.error ?? 'تأیید پرداخت ناموفق بود')
     }
   }
 
   const abandonPayment = () => {
     cancelPendingPayment()
     setStep('plans')
+    setRefId('')
     showToast('پرداخت لغو شد')
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(() => { setStep('plans'); setPayError(null) }, 400) }}>
+    <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setTimeout(() => { setStep('plans'); setPayError(null); setRefId('') }, 400) }}>
       <SheetContent side="bottom" className="mx-auto max-w-[430px] rounded-t-3xl border-border bg-card px-0 pt-2 pb-8 [&>button]:left-4 [&>button]:right-auto">
         <SheetHeader className="px-5 pb-2 text-right">
           <SheetTitle className="flex items-center gap-2 text-lg">
@@ -191,61 +158,41 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               disabled={busy}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-black text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-50"
             >
-              {busy ? <Loader2 className="size-5 animate-spin" /> : <Crown className="size-5" />}
-              {busy ? 'در حال اتصال به درگاه...' : `خرید اشتراک ${plan.label} — ${faNumber(plan.price)} تومان`}
+              {busy ? <Loader2 className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
+              {busy ? 'در حال باز کردن درگاه...' : `خرید اشتراک ${plan.label} — ${faNumber(plan.price)} تومان`}
             </button>
-            <p className="mt-2 text-center text-[10px] text-muted-foreground">
-              پرداخت امن از طریق درگاه رسمی زارین‌پال • اشتراک فقط پس از تأیید درگاه فعال می‌شود
+            <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">
+              پرداخت آنلاین از طریق درگاه رسمی برنامه انجام و مستقیماً به حساب توسعه‌دهنده واریز می‌شود.
             </p>
           </div>
         )}
 
-        {step === 'merchant' && (
+        {step === 'confirm' && (
           <div className="max-h-[60vh] overflow-y-auto px-5 pb-4">
-            <button onClick={() => setStep('plans')} className="mb-3 text-xs text-primary">→ بازگشت به پلن‌ها</button>
-            <div className="mb-3 flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
-              <KeyRound className="mt-0.5 size-4 shrink-0 text-amber-500" />
-              <p className="text-[11px] leading-5 text-amber-600 dark:text-amber-400">
-                برای پرداخت واقعی، «کد مرچنت» زارین‌پال لازم است. آن را از پنل
-                zarinpal.com ← درگاه‌ها کپی کنید. این کد فقط روی همین گوشی ذخیره می‌شود.
+            <div className="mb-3 flex items-start gap-2 rounded-2xl border border-primary/30 bg-primary/10 p-3">
+              <ReceiptText className="mt-0.5 size-4 shrink-0 text-primary" />
+              <p className="text-[11px] leading-5 text-foreground/80">
+                صفحه‌ی درگاه باز شد. مبلغ <b className="num">{faNumber(plan.price)} تومان</b> را پرداخت کنید
+                («درگاه پرداخت دونیتو»). سپس به این صفحه برگردید و <b>شماره رسید/پیگیری</b> که در درگاه
+                دریافت کردید را در کادر زیر وارد کنید تا اشتراک فوراً فعال شود.
               </p>
             </div>
+            <button
+              onClick={() => void beginPay()}
+              className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-border bg-background/50 py-2.5 text-[12px] font-bold text-primary"
+            >
+              <ExternalLink className="size-4" />
+              صفحه‌ی درگاه باز نشد؟ دوباره باز کن
+            </button>
+
             <input
-              value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
-              placeholder="کد مرچنت زارین‌پال"
+              inputMode="numeric"
+              value={refId}
+              onChange={(e) => { setRefId(e.target.value); setPayError(null) }}
+              placeholder="شماره رسید / پیگیری پرداخت"
               dir="ltr"
               className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
             />
-            <button
-              onClick={() => void window.open('https://www.zarinpal.com/panel', '_blank')}
-              className="mt-2 flex items-center gap-1 text-[11px] text-primary"
-            >
-              <ExternalLink className="size-3.5" />
-              باز کردن پنل زارین‌پال
-            </button>
-            <button
-              onClick={() => void saveMerchant()}
-              className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-black text-primary-foreground active:scale-[0.98]"
-            >
-              ذخیره و ادامه به پرداخت
-            </button>
-          </div>
-        )}
-
-        {step === 'waiting' && (
-          <div className="max-h-[60vh] px-5 pb-4">
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/50 p-5 text-center">
-              <Hourglass className="size-9 text-primary" />
-              <p className="text-[14px] font-black">صفحه پرداخت زارین‌پال باز شد</p>
-              <p className="text-[12px] leading-6 text-muted-foreground">
-                پرداخت را در مرورگر کامل کنید. همین که به برنامه برگردید، رسید به‌صورت
-                خودکار بررسی و اشتراک فعال می‌شود.
-              </p>
-              <p className="num text-[11px] text-muted-foreground">
-                مبلغ: {faNumber(plan.price)} تومان
-              </p>
-            </div>
             {payError && (
               <p className="mt-2 flex items-start gap-1.5 rounded-xl bg-destructive/10 p-2.5 text-[11px] leading-5 text-destructive">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
@@ -253,12 +200,12 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               </p>
             )}
             <button
-              onClick={() => void manualCheck()}
-              disabled={busy}
+              onClick={confirmPay}
+              disabled={busy || refId.trim().length < 4}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-black text-primary-foreground disabled:opacity-50"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              پرداخت را بررسی کن
+              ثبت رسید و فعال‌سازی اشتراک
             </button>
             <button
               onClick={abandonPayment}
@@ -278,7 +225,7 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             <p className="text-center text-[13px] leading-6 text-muted-foreground">
               اشتراک <b>{PLANS.find((p) => p.key === paymentDone.plan)?.label ?? ''}</b> آپدیت‌یار ویژه فعال شد.
               <br />
-              کد رهگیری زارین‌پال: <b className="num">{faDigits(paymentDone.refId)}</b>
+              شماره رسید درگاه: <b className="num">{faDigits(paymentDone.refId)}</b>
             </p>
             <button
               onClick={() => { clearPaymentDone(); reset() }}

@@ -9,7 +9,7 @@
  *
  * ⚠️ هیچ داده‌ی نمایشی/فیک در این فایل وجود ندارد:
  *  - حامیان = فقط پرداخت‌های واقعی تأییدشده‌ی همین گوشی
- *  - اشتراک = فقط پس از تأیید درگاه زارین‌پال فعال می‌شود
+ *  - اشتراک = فقط با شماره رسید درگاه آنلاین (دونیتو) فعال می‌شود
  *  - مخازن گیت‌هاب = پیشنهادهای مرجع + مخازنی که خود کاربر اضافه می‌کند
  */
 
@@ -109,7 +109,6 @@ function defaultSettings(): SettingsT {
     premiumPlan: null,
     premiumUntil: null,
     supporterTier: null,
-    zarinpalMerchant: '',
     onboarded: false,
   }
 }
@@ -332,7 +331,7 @@ const ALLOWED_KEYS = [
   'darkTheme', 'accentTheme', 'syncWithSystem', 'scheduledTheme',
   'dataSaver', 'autoUpdateWifi', 'scheduledChecks',
   'sourceGooglePlay', 'sourceBazaar', 'sourceMyket', 'sourceGithub', 'sourceCustom',
-  'isPremium', 'premiumPlan', 'premiumUntil', 'supporterTier', 'zarinpalMerchant', 'onboarded',
+  'isPremium', 'premiumPlan', 'premiumUntil', 'supporterTier', 'onboarded',
 ] as const
 
 export function updateSettings(patch: Partial<SettingsT>): SettingsT {

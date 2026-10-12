@@ -28,6 +28,12 @@ export interface InstalledAppsPluginInterface {
   openUrl(options: { url: string }): Promise<void>
   /** باز کردن صفحه‌ی تنظیمات خود اپ (برای دادن دسترسی‌های خاص مثل MIUI) */
   openAppSettings(): Promise<void>
+  /** وضعیت دسترسی‌های لازم (اعلان‌ها / نصب بسته) */
+  getPermissionStatus(): Promise<{ notifications: boolean; canInstall: boolean }>
+  /** درخواست واقعی دسترسی اعلان‌ها — دیالوگ سیستمی اندروید ۱۳+ */
+  requestNotifications(): Promise<{ granted?: boolean; skipped?: boolean }>
+  /** باز کردن صفحه‌ی سیستمی «نصب برنامه‌های ناشناس» برای خود اپ */
+  openInstallPermissionSettings(): Promise<void>
   /** رویداد باز شدن اپ با deep-link (مثل بازگشت از درگاه پرداخت) */
   addListener(eventName: 'appUrlOpen', listenerFunc: (data: { url: string }) => void): Promise<string>
   removeListener(eventName: 'appUrlOpen', listenerFunc: unknown): Promise<void>

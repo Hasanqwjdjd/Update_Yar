@@ -118,14 +118,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
         return
       }
 
+      // درخواست دسترسی اعلان‌ها (فقط یک‌بار در عمر نصب) — اندروید ۱۳+
+      try {
+        const asked = window.localStorage.getItem('updatayar-perms-asked')
+        if (!asked) {
+          const st = await InstalledApps.getPermissionStatus()
+          if (!st.notifications) {
+            void InstalledApps.requestNotifications().catch(() => { /* noop */ })
+          }
+          window.localStorage.setItem('updatayar-perms-asked', '1')
+        }
+      } catch { /* noop */ }
+
       // اسکن واقعی: خواندن برنامه‌های نصب‌شده از خود گوشی (با سقف زمانی)
       const scan = await withTimeout(
         InstalledApps.listInstalledApps(),
         SCAN_TIMEOUT_MS,
         'timeout',
       )
+      const natives = scan?.apps ?? []
+      if (natives.length === 0) {
+        // گوشی اجازه‌ی دیدن هیچ برنامه‌ای نداد — راهنمای فعال‌سازی دسترسی نشان داده می‌شود
+        set({ scanError: 'permission', loading: false })
+        return
+      }
       const { buildAppsFromNative } = await import('@/lib/local-db')
-      const apps = buildAppsFromNative(scan?.apps ?? [])
+      const apps = buildAppsFromNative(natives)
       saveAppsCache(apps)
       set({ apps, loading: false })
       const updateCount = apps.filter((a) => a.newVersion).length

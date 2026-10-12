@@ -22,7 +22,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- deep-link بازگشت از درگاه پرداخت زارین‌پال (updatayar://payment) -->
+            <!-- deep-link بازگشت به اپ (updatayar://payment) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -50,6 +50,8 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- لازمه‌ی اصلی اپ: خواندن لیست برنامه‌های نصب‌شده روی گوشی (اندروید ۱۱+) -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- اعلان‌های آپدیت (اندروید ۱۳+ با درخواست runtime از خود کاربر گرفته می‌شود) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- تشخیص فروشگاه‌ها برای باز کردن صفحه‌ی آپدیت -->
     <queries>

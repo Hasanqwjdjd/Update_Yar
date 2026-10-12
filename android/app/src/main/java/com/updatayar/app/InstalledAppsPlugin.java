@@ -1,5 +1,6 @@
 package com.updatayar.app;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -14,6 +15,8 @@ import android.provider.Settings;
 import android.util.Base64;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -42,8 +45,12 @@ import java.util.List;
 @CapacitorPlugin(name = "InstalledApps")
 public class InstalledAppsPlugin extends Plugin {
 
-    /** حجم آیکون بازگشتی (پیکسل) */
-    private static final int ICON_SIZE = 96;
+    /** حجم آیکون بازگشتی (پیکسل) — کوچک نگه داشته می‌شود تا پاسخ پل سنگین نشود */
+    private static final int ICON_SIZE = 72;
+    /** سقف تعداد آیکون‌ها در هر پاسخ (بقیه بدون آیکون برمی‌گردند) */
+    private static final int MAX_ICONS = 120;
+
+    private static final int REQ_NOTIFICATIONS = 4401;
 
     /**
      * پکیج‌های شناخته‌شده‌ی کاتالوگ — اگر گوشی اجازه‌ی لیست کامل ندهد،
@@ -62,104 +69,111 @@ public class InstalledAppsPlugin extends Plugin {
     public void listInstalledApps(final PluginCall call) {
         // خواندن لیست پکیج‌ها سنگین است؛ در نخ جداگانه اجرا می‌شود
         new Thread(() -> {
-            String selfPkg = getContext().getPackageName();
-            List<PackageInfo> packages = null;
-            String listError = null;
-            try {
-                PackageManager pm = getContext().getPackageManager();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    packages = pm.getInstalledPackages(
-                            PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA));
-                } else {
-                    packages = pm.getInstalledPackages(PackageManager.GET_META_DATA);
-                }
-            } catch (Exception e) {
-                listError = e.getClass().getSimpleName() + ": " + e.getMessage();
-            }
-
-            final boolean restricted =
-                    packages == null || packages.isEmpty();
-
-            // اگر لیست کامل خالی/ممنوع بود (مثلاً MIUI) → تلاش با پکیج‌های اعلام‌شده در queries
-            List<PackageInfo> effective;
-            if (restricted) {
-                effective = readCatalogPackages();
-                if (effective.isEmpty()) {
-                    JSObject err = new JSObject();
-                    err.put("message", "PERMISSION_DENIED: " +
-                            (listError != null ? listError : "گوشی اجازه‌ی دیدن هیچ برنامه‌ای نداد"));
-                    call.reject(err.getString("message"));
-                    return;
-                }
-            } else {
-                effective = packages;
-            }
-
-            final List<PackageInfo> list = effective;
             JSArray arr = new JSArray();
-            PackageManager pm = getContext().getPackageManager();
-            for (PackageInfo pi : list) {
-                if (pi == null || pi.applicationInfo == null) continue;
-                ApplicationInfo ai = pi.applicationInfo;
-                if (selfPkg.equals(ai.packageName)) continue;
+            try {
+                String selfPkg = getContext().getPackageName();
+                List<PackageInfo> packages = null;
+                String listError = null;
                 try {
-                    JSObject o = new JSObject();
-                    o.put("packageName", ai.packageName);
-
-                    String label;
-                    try {
-                        label = ai.loadLabel(pm).toString();
-                    } catch (Exception e) {
-                        label = ai.packageName;
+                    PackageManager pm = getContext().getPackageManager();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        packages = pm.getInstalledPackages(
+                                PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA));
+                    } else {
+                        packages = pm.getInstalledPackages(PackageManager.GET_META_DATA);
                     }
-                    o.put("appName", label);
+                } catch (Exception e) {
+                    listError = e.getClass().getSimpleName() + ": " + e.getMessage();
+                }
 
-                    o.put("versionName", pi.versionName != null ? pi.versionName : "?");
-                    long vc = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-                            ? pi.getLongVersionCode() : pi.versionCode;
-                    o.put("versionCode", vc);
+                final boolean restricted = packages == null || packages.isEmpty();
 
-                    boolean isSystem = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-                    o.put("isSystem", isSystem);
-                    o.put("installTime", pi.firstInstallTime);
-
-                    double sizeMB = 0;
-                    try {
-                        if (ai.sourceDir != null) {
-                            long bytes = new File(ai.sourceDir).length();
-                            sizeMB = Math.round(bytes / 1048576.0 * 10) / 10.0;
-                        }
-                    } catch (Exception e) {
-                        sizeMB = 0;
+                // اگر لیست کامل خالی/ممنوع بود (مثلاً MIUI) → تلاش با پکیج‌های اعلام‌شده در queries
+                List<PackageInfo> effective;
+                if (restricted) {
+                    effective = readCatalogPackages();
+                    if (effective.isEmpty()) {
+                        JSObject err = new JSObject();
+                        err.put("message", "PERMISSION_DENIED: " +
+                                (listError != null ? listError : "گوشی اجازه‌ی دیدن هیچ برنامه‌ای نداد"));
+                        call.reject(err.getString("message"));
+                        return;
                     }
-                    o.put("sizeMB", sizeMB);
+                } else {
+                    effective = packages;
+                }
 
-                    // آیکون فقط برای برنامه‌های غیرسیستمی (کاهش حجم داده)
-                    if (!isSystem) {
-                        String iconB64 = null;
+                PackageManager pm = getContext().getPackageManager();
+                int iconCount = 0;
+                for (PackageInfo pi : effective) {
+                    try {
+                        if (pi == null || pi.applicationInfo == null) continue;
+                        ApplicationInfo ai = pi.applicationInfo;
+                        if (selfPkg.equals(ai.packageName)) continue;
+
+                        JSObject o = new JSObject();
+                        o.put("packageName", ai.packageName);
+
+                        String label;
                         try {
-                            Drawable d = ai.loadIcon(pm);
-                            Bitmap bmp = drawableToBitmap(d, ICON_SIZE);
-                            if (bmp != null) {
-                                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                                bmp.compress(Bitmap.CompressFormat.PNG, 80, bos);
-                                iconB64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+                            label = ai.loadLabel(pm).toString();
+                        } catch (Exception e) {
+                            label = ai.packageName;
+                        }
+                        o.put("appName", label);
+
+                        o.put("versionName", pi.versionName != null ? pi.versionName : "?");
+                        long vc = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                                ? pi.getLongVersionCode() : pi.versionCode;
+                        o.put("versionCode", vc);
+
+                        boolean isSystem = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                        o.put("isSystem", isSystem);
+                        o.put("installTime", pi.firstInstallTime);
+
+                        double sizeMB = 0;
+                        try {
+                            if (ai.sourceDir != null) {
+                                long bytes = new File(ai.sourceDir).length();
+                                sizeMB = Math.round(bytes / 1048576.0 * 10) / 10.0;
                             }
                         } catch (Exception e) {
-                            iconB64 = null;
+                            sizeMB = 0;
                         }
-                        if (iconB64 != null) o.put("iconBase64", iconB64);
-                    }
+                        o.put("sizeMB", sizeMB);
 
-                    arr.put(o);
-                } catch (Exception e) {
-                    // این پکیج نادیده گرفته می‌شود
+                        // آیکون فقط برای برنامه‌های غیرسیستمی و تا سقف مشخص (کاهش حجم داده)
+                        if (!isSystem && iconCount < MAX_ICONS) {
+                            String iconB64 = null;
+                            try {
+                                Drawable d = ai.loadIcon(pm);
+                                Bitmap bmp = drawableToBitmap(d, ICON_SIZE);
+                                if (bmp != null) {
+                                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                                    bmp.compress(Bitmap.CompressFormat.PNG, 70, bos);
+                                    iconB64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+                                    bmp.recycle();
+                                }
+                            } catch (Throwable e) {
+                                iconB64 = null;
+                            }
+                            if (iconB64 != null) {
+                                o.put("iconBase64", iconB64);
+                                iconCount++;
+                            }
+                        }
+
+                        arr.put(o);
+                    } catch (Throwable e) {
+                        // این پکیج نادیده گرفته می‌شود
+                    }
                 }
+            } catch (Throwable fatal) {
+                // هر خطای غیرمنتظره — به‌جای شکست، هرچه جمع شده برمی‌گردد
             }
 
             JSObject ret = new JSObject();
             ret.put("apps", arr);
-            ret.put("partial", restricted);
             call.resolve(ret);
         }).start();
     }
@@ -292,7 +306,76 @@ public class InstalledAppsPlugin extends Plugin {
         }
     }
 
-    /** رویداد باز شدن اپ از طریق deep-link (مثلاً بازگشت از درگاه زارین‌پال) */
+    /** وضعیت دسترسی‌های لازم اپ — برای نمایش و درخواست واقعی در آنبوردینگ/تنظیمات */
+    @PluginMethod
+    public void getPermissionStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+
+        // اعلان‌ها (اندروید ۱۳+/runtime — پایین‌تر همیشه مجاز)
+        boolean notifications = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifications = ContextCompat.checkSelfPermission(
+                    getContext(), Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        ret.put("notifications", notifications);
+
+        // اجازه نصب بسته‌های ناشناس (برای نصب مستقیم آپدیت)
+        boolean canInstall = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                canInstall = getContext().getPackageManager().canRequestPackageInstalls();
+            } catch (Exception e) {
+                canInstall = false;
+            }
+        }
+        ret.put("canInstall", canInstall);
+
+        call.resolve(ret);
+    }
+
+    /** درخواست واقعی دسترسی اعلان‌ها — دیالوگ سیستمی اندروید ۱۳+ باز می‌شود */
+    @PluginMethod
+    public void requestNotifications(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            ret.put("skipped", true);
+            call.resolve(ret);
+            return;
+        }
+        try {
+            ActivityCompat.requestPermissions(
+                    bridge.getActivity(),
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    REQ_NOTIFICATIONS);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("request_failed: " + e.getMessage());
+        }
+    }
+
+    /** باز کردن صفحه‌ی سیستم «نصب برنامه‌های ناشناس» برای خود اپ */
+    @PluginMethod
+    public void openInstallPermissionSettings(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getContext().getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            } else {
+                Intent i = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("settings_open_failed: " + e.getMessage());
+        }
+    }
+
+    /** رویداد باز شدن اپ از طریق deep-link (updatayar://payment) */
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);

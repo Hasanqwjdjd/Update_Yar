@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { Crown, HeartHandshake, Users, Info, ChevronLeft, Sparkles, ShieldCheck, Github, ExternalLink, ReceiptText, Mail } from 'lucide-react'
+import { Crown, HeartHandshake, Users, Info, ChevronLeft, Sparkles, ShieldCheck, ReceiptText, Mail } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { listSupporters, listPayments } from '@/lib/local-db'
 import { openExternal } from '@/lib/native'
-import { APP_VERSION, REPO_URL, SUPPORT_EMAIL } from '@/lib/config'
+import { APP_VERSION, SUPPORT_EMAIL } from '@/lib/config'
 import type { SupporterItem, PaymentRecord } from '@/lib/types'
 
 const TIER_LABELS: Record<string, string> = {
@@ -172,20 +172,10 @@ export function ProfileSheet({
             <div className="flex items-center gap-2 rounded-2xl border border-border bg-background/50 p-3.5">
               <ShieldCheck className="size-5 shrink-0 text-primary" />
               <p className="text-[11px] leading-5 text-muted-foreground">
-                آپدیت‌یار هیچ اطلاعات شخصی جمع‌آوری نمی‌کند. پرداخت‌ها فقط از طریق درگاه رسمی
-                زارین‌پال انجام و پس از تأیید درگاه فعال می‌شوند.
+                آپدیت‌یار هیچ اطلاعات شخصی جمع‌آوری نمی‌کند. پرداخت‌ها فقط از طریق درگاه آنلاین رسمی
+                برنامه (دونیتو) انجام و با شماره رسید فعال می‌شوند.
               </p>
             </div>
-            <button
-              onClick={() => { void openExternal(REPO_URL) }}
-              className="flex w-full items-center gap-2 rounded-2xl border border-border bg-background/50 p-3.5 text-right"
-            >
-              <Github className="size-5 shrink-0 text-foreground" />
-              <p className="min-w-0 flex-1 text-[11px] leading-5 text-muted-foreground">
-                سورس کامل پروژه در گیت‌هاب — <span dir="ltr">Hasanqwjdjd/Hasan-Vpn</span>
-              </p>
-              <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
-            </button>
           </div>
         )}
 
@@ -224,20 +214,13 @@ export function ProfileSheet({
               )}
             </div>
 
-            <div className="flex gap-2 border-t border-border pt-3">
+            <div className="border-t border-border pt-3">
               <button
                 onClick={() => { void openExternal(`mailto:${SUPPORT_EMAIL}`) }}
-                className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-2xl border border-border text-[12px] font-bold"
+                className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[12px] font-black text-primary-foreground"
               >
                 <Mail className="size-4" />
-                ایمیل به پشتیبانی
-              </button>
-              <button
-                onClick={() => { void openExternal(REPO_URL) }}
-                className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[12px] font-black text-primary-foreground"
-              >
-                <Github className="size-4" />
-                سورس پروژه
+                ایمیل به پشتیبانی — {SUPPORT_EMAIL}
               </button>
             </div>
           </DialogContent>

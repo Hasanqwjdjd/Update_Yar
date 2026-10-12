@@ -18,8 +18,6 @@ import { SupportSheet } from '@/components/app/support-sheet'
 import { AdBanner } from '@/components/app/ad-banner'
 import { faDigits, faNumber } from '@/lib/persian'
 import { listAds, isPremiumActive } from '@/lib/local-db'
-import { InstalledApps, isNativeApp } from '@/lib/native'
-import { checkPendingPayment, hasPendingPayment } from '@/lib/payment'
 import type { AdItemT, GithubRepoItem, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -32,10 +30,7 @@ export default function Page() {
   const scanError = useAppStore((s) => s.scanError)
   const paymentDone = useAppStore((s) => s.paymentDone)
   const clearPaymentDone = useAppStore((s) => s.clearPaymentDone)
-  const refreshSettings = useAppStore((s) => s.refreshSettings)
-  const showToast = useAppStore((s) => s.showToast)
   const toast = useAppStore((s) => s.toast)
-
   const [detailsApp, setDetailsApp] = useState<InstalledApp | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [premiumOpen, setPremiumOpen] = useState(false)
@@ -47,62 +42,54 @@ export default function Page() {
     void loadAll()
   }, [loadAll])
 
-  // اعمال تم روی سند
+  // ---- اعمال تم روی سند (شامل زمان‌بندی «تم تیره در شب») ----
   useEffect(() => {
     if (!settings) return
     const root = document.documentElement
-    if (settings.syncWithSystem) {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      const apply = () => root.classList.toggle('dark', mq.matches)
-      apply()
-      mq.addEventListener('change', apply)
-      return () => mq.removeEventListener('change', apply)
+
+    const isNightTime = () => {
+      const h = new Date().getHours() // ساعت محلی گوشی
+      return h >= 20 || h < 7 // از ۲۰ شب تا ۷ صبح
     }
-    root.classList.toggle('dark', settings.darkTheme)
+
+    const applyTheme = () => {
+      let dark: boolean
+      if (settings.scheduledTheme === 'night') {
+        // زمان‌بندی: تم تیره فقط شب‌ها (۲۰ تا ۷) — روز از تنظیم تم تیره پیروی می‌کند
+        dark = isNightTime() ? true : settings.darkTheme
+      } else if (settings.scheduledTheme === 'auto' || settings.syncWithSystem) {
+        dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      } else {
+        dark = settings.darkTheme
+      }
+      root.classList.toggle('dark', dark)
+    }
+
+    applyTheme()
+    // هر دقیقه دوباره ارزیابی می‌شود تا گذر زمان (مثلاً رسیدن ساعت ۲۰) بلافاصله اعمال شود
+    const iv = setInterval(applyTheme, 60000)
+    const onVis = () => { if (!document.hidden) applyTheme() }
+    document.addEventListener('visibilitychange', onVis)
+
+    if (settings.scheduledTheme === 'auto' || settings.syncWithSystem) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      mq.addEventListener('change', applyTheme)
+      return () => {
+        clearInterval(iv)
+        document.removeEventListener('visibilitychange', onVis)
+        mq.removeEventListener('change', applyTheme)
+      }
+    }
+    return () => {
+      clearInterval(iv)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [settings])
 
   useEffect(() => {
     if (!settings) return
     document.documentElement.setAttribute('data-accent', settings.accentTheme)
   }, [settings])
-
-  // ---- پرداخت: بررسی خودکار پس از بازگشت از درگاه زارین‌پال ----
-  useEffect(() => {
-    let alive = true
-    const check = async () => {
-      if (!hasPendingPayment()) return
-      const r = await checkPendingPayment()
-      if (!alive) return
-      if (r.ok && r.done) {
-        refreshSettings()
-        useAppStore.getState().setPaymentDone(r.done)
-        showToast(`پرداخت تأیید شد ✓ کد رهگیری: ${faDigits(r.done.refId)}`)
-      }
-    }
-
-    // ۱) deep-link بازگشت از درگاه (updatayar://payment)
-    let removeUrlListener: (() => void) | null = null
-    if (isNativeApp()) {
-      void InstalledApps.addListener('appUrlOpen', () => { void check() }).then((h) => {
-        removeUrlListener = () => { void InstalledApps.removeListener('appUrlOpen', h) }
-      }).catch(() => { /* noop */ })
-    }
-
-    // ۲) بازگشت به اپ / برگشت فوکوس
-    const onVis = () => { if (!document.hidden) void check() }
-    document.addEventListener('visibilitychange', onVis)
-
-    // ۳) بررسی دوره‌ای تا وقتی پرداختی در انتظار است
-    const iv = setInterval(() => { void check() }, 7000)
-    void check()
-
-    return () => {
-      alive = false
-      document.removeEventListener('visibilitychange', onVis)
-      clearInterval(iv)
-      removeUrlListener?.()
-    }
-  }, [refreshSettings, showToast])
 
   // جلوگیری از اسکرول پس‌زمینه هنگام باز بودن شیت
   const isSheetOpen = Boolean(detailsApp) || profileOpen || premiumOpen || supportOpen
@@ -232,7 +219,7 @@ export default function Page() {
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2">
-              {scanError === 'permission' && isNativeApp() && (
+              {(scanError === 'permission' || scanError === 'failed') && isNativeApp() && (
                 <button
                   onClick={() => { void InstalledApps.openAppSettings() }}
                   className="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-2xl border border-border text-[13px] font-bold"

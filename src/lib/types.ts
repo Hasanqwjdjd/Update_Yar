@@ -53,15 +53,15 @@ export interface GithubRepoItem {
   custom?: boolean
 }
 
-/** رسید پرداخت واقعی (پس از تأیید درگاه) — روی همین گوشی ذخیره می‌شود */
+/** رسید پرداخت واقعی — روی همین گوشی ذخیره می‌شود */
 export interface PaymentRecord {
   id: string
   kind: 'premium' | 'support'
   plan?: string
   amountToman: number
-  authority: string
+  /** شماره رسید/پیگیری که کاربر از صفحه درگاه وارد می‌کند */
   refId: string
-  gateway: 'zarinpal'
+  gateway: 'donito'
   date: string
 }
 
@@ -106,9 +106,8 @@ export interface SettingsT {
   premiumPlan: string | null
   /** انقضای اشتراک (ISO) — برای پلن مادام‌العمر null */
   premiumUntil: string | null
+  /** سطح حمایت کاربر */
   supporterTier: string | null
-  /** کد مرچنت زارین‌پال توسعه‌دهنده — بدون آن پرداخت واقعی ممکن نیست */
-  zarinpalMerchant: string
   onboarded: boolean
 }
 
