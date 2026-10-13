@@ -68,12 +68,15 @@ public class InstalledAppsPlugin extends Plugin {
     @PluginMethod
     public void listInstalledApps(final PluginCall call) {
         // خواندن لیست پکیج‌ها سنگین است؛ در نخ جداگانه اجرا می‌شود
+        // هر خطای غیرمنتظره باید حتماً resolve/reject شود تا JS timeout نخورد
         new Thread(() -> {
             JSArray arr = new JSArray();
+            boolean wasRestricted = false;
+            String listError = null;
+            try { // outer — هر چیزی که از این بیرون برود catch می‌شود
             try {
                 String selfPkg = getContext().getPackageName();
                 List<PackageInfo> packages = null;
-                String listError = null;
                 try {
                     PackageManager pm = getContext().getPackageManager();
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -87,16 +90,16 @@ public class InstalledAppsPlugin extends Plugin {
                 }
 
                 final boolean restricted = packages == null || packages.isEmpty();
+                wasRestricted = restricted;
 
                 // اگر لیست کامل خالی/ممنوع بود (مثلاً MIUI) → تلاش با پکیج‌های اعلام‌شده در queries
                 List<PackageInfo> effective;
                 if (restricted) {
                     effective = readCatalogPackages();
                     if (effective.isEmpty()) {
-                        JSObject err = new JSObject();
-                        err.put("message", "PERMISSION_DENIED: " +
+                        // به‌جای hang، با خطای واضح reject می‌کنیم
+                        call.reject("PERMISSION_DENIED: " +
                                 (listError != null ? listError : "گوشی اجازه‌ی دیدن هیچ برنامه‌ای نداد"));
-                        call.reject(err.getString("message"));
                         return;
                     }
                 } else {
@@ -170,11 +173,26 @@ public class InstalledAppsPlugin extends Plugin {
                 }
             } catch (Throwable fatal) {
                 // هر خطای غیرمنتظره — به‌جای شکست، هرچه جمع شده برمی‌گردد
+                listError = (listError != null ? listError + "; " : "") + fatal.getClass().getSimpleName();
             }
 
             JSObject ret = new JSObject();
             ret.put("apps", arr);
+            if (wasRestricted) {
+                ret.put("partial", true);
+            }
+            if (listError != null) {
+                ret.put("warning", listError);
+            }
             call.resolve(ret);
+            } catch (Throwable outer) {
+                // تضمین می‌کند که Promise همیشه جواب می‌گیرد (جلوگیری از timeout در JS)
+                try {
+                    call.reject("SCAN_FAILED: " + outer.getClass().getSimpleName() + ": " + outer.getMessage());
+                } catch (Throwable ignored) {
+                    // اگر call قبلاً resolve شده باشد نادیده می‌گیریم
+                }
+            }
         }).start();
     }
 
@@ -276,10 +294,32 @@ public class InstalledAppsPlugin extends Plugin {
             return;
         }
         try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            Uri uri = Uri.parse(url);
+            Intent i;
+            // برای ایمیل از ACTION_SENDTO استفاده می‌کنیم تا اپ‌های ایمیل به‌درستی باز شوند
+            if (url.toLowerCase().startsWith("mailto:")) {
+                i = new Intent(Intent.ACTION_SENDTO, uri);
+            } else {
+                i = new Intent(Intent.ACTION_VIEW, uri);
+                i.addCategory(Intent.CATEGORY_BROWSABLE);
+            }
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(i);
-            call.resolve();
+            // اگر هیچ اپی نتواند هندل کند، createChooser هم ممکن است fail شود؛
+            // اول resolveActivity چک می‌کنیم
+            if (i.resolveActivity(getContext().getPackageManager()) != null) {
+                getContext().startActivity(i);
+                call.resolve();
+            } else {
+                // تلاش با chooser برای انتخاب اپ توسط کاربر
+                Intent chooser = Intent.createChooser(i, null);
+                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (chooser.resolveActivity(getContext().getPackageManager()) != null) {
+                    getContext().startActivity(chooser);
+                    call.resolve();
+                } else {
+                    call.reject("no_handler: هیچ برنامه‌ای برای باز کردن این لینک پیدا نشد");
+                }
+            }
         } catch (Exception e) {
             call.reject("no_handler: " + e.getMessage());
         }

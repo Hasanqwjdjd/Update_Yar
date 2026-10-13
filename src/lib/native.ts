@@ -21,7 +21,7 @@ export interface NativeAppInfo {
 }
 
 export interface InstalledAppsPluginInterface {
-  listInstalledApps(): Promise<{ apps: NativeAppInfo[]; partial?: boolean }>
+  listInstalledApps(): Promise<{ apps: NativeAppInfo[]; partial?: boolean; warning?: string }>
   openApp(options: { packageName: string }): Promise<void>
   openInStore(options: { packageName: string; store: string; url?: string }): Promise<void>
   /** باز کردن هر لینکی در مرورگر/اپ مناسب سیستم (mailto، https، ...) */

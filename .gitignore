@@ -14,3 +14,11 @@ android/local.properties
 android/.idea/
 *.iml
 tsconfig.tsbuildinfo
+
+# پوشه‌های کاری محلی — هرگز نباید وارد مخزن شوند
+upload/
+download/
+skills/
+scripts/agent-ctx/
+worklog.md
+.agent*

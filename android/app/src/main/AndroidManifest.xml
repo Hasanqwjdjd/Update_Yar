@@ -53,11 +53,16 @@
     <!-- اعلان‌های آپدیت (اندروید ۱۳+ با درخواست runtime از خود کاربر گرفته می‌شود) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- تشخیص فروشگاه‌ها برای باز کردن صفحه‌ی آپدیت -->
+    <!-- تشخیص فروشگاه‌ها برای باز کردن صفحه‌ی آپدیت + مرورگر و ایمیل -->
     <queries>
         <package android:name="com.farsitel.bazaar" />
         <package android:name="ir.mservices.market" />
         <package android:name="com.android.vending" />
+        <package android:name="com.android.chrome" />
+        <package android:name="com.chrome.beta" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.microsoft.office.outlook" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="bazaar" />
@@ -69,6 +74,18 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
         </intent>
     </queries>
 

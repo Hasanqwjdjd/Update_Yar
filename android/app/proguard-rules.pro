@@ -19,3 +19,12 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor / Updatayar — keep plugins and bridge
+-keep class com.getcapacitor.** { *; }
+-keep class com.updatayar.app.** { *; }
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod <methods>;
+}
+-keepattributes *Annotation*
+-dontwarn com.getcapacitor.**

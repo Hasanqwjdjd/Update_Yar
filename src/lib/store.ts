@@ -161,6 +161,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ scanError: 'permission' })
       } else if (msg === 'timeout') {
         set({ scanError: 'timeout' })
+      } else if (msg.includes('SCAN_FAILED') || msg.includes('PLUGIN_NOT_FOUND') || msg.includes('not implemented')) {
+        set({ scanError: 'failed' })
+        showToast('پلاگین اسکن در دسترس نیست — اپ را از نو نصب کنید')
       } else {
         set({ scanError: 'failed' })
       }
