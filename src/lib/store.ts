@@ -8,7 +8,7 @@ import {
 } from '@/lib/local-db'
 import { InstalledApps, isNativeApp } from '@/lib/native'
 import { faDigits } from '@/lib/persian'
-import type { PaymentDone } from '@/lib/payment'
+import { parsePaymentReturnUrl, verifyZarinpalPayment, type PaymentDone } from '@/lib/payment'
 
 export type View = 'home' | 'updates' | 'github' | 'history' | 'settings'
 
@@ -69,6 +69,9 @@ interface AppStore {
   paymentDone: PaymentDone | null
   setPaymentDone: (r: PaymentDone) => void
   clearPaymentDone: () => void
+  /** وقتی اپ از طریق deep-link بازگشت از درگاه پرداخت باز می‌شود صدا زده می‌شود؛
+   *  Authority را مستقیماً از API زرین‌پال تأیید می‌کند (هیچ ورودی کاربر پذیرفته نمی‌شود) */
+  completePaymentFromUrl: (url: string) => Promise<void>
 
   // اعلان‌های شیشه‌ای
   toast: string | null
@@ -253,6 +256,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
   paymentDone: null,
   setPaymentDone: (r) => set({ paymentDone: r }),
   clearPaymentDone: () => set({ paymentDone: null }),
+  completePaymentFromUrl: async (url) => {
+    const parsed = parsePaymentReturnUrl(url)
+    if (!parsed) return
+    const result = await verifyZarinpalPayment(parsed.authority, parsed.status)
+    if (result.ok && result.done) {
+      get().refreshSettings()
+      set({ paymentDone: result.done })
+    } else if (result.error) {
+      get().showToast(result.error)
+    }
+  },
 
   toast: null,
   showToast: (msg) => {

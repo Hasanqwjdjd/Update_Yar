@@ -18,6 +18,7 @@ import { SupportSheet } from '@/components/app/support-sheet'
 import { AdBanner } from '@/components/app/ad-banner'
 import { faDigits, faNumber } from '@/lib/persian'
 import { listAds, isPremiumActive } from '@/lib/local-db'
+import { InstalledApps, isNativeApp } from '@/lib/native'
 import type { AdItemT, GithubRepoItem, InstalledApp } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -41,6 +42,16 @@ export default function Page() {
   useEffect(() => {
     void loadAll()
   }, [loadAll])
+
+  // بازگشت از درگاه پرداخت (deep-link: updatayar://payment?Authority=...&Status=...)
+  useEffect(() => {
+    if (!isNativeApp()) return
+    const onUrlOpen = (data: { url: string }) => {
+      void useAppStore.getState().completePaymentFromUrl(data.url)
+    }
+    void InstalledApps.addListener('appUrlOpen', onUrlOpen)
+    return () => { void InstalledApps.removeListener('appUrlOpen', onUrlOpen) }
+  }, [])
 
   // ---- اعمال تم روی سند (شامل زمان‌بندی «تم تیره در شب») ----
   useEffect(() => {

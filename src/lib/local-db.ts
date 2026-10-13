@@ -9,7 +9,7 @@
  *
  * ⚠️ هیچ داده‌ی نمایشی/فیک در این فایل وجود ندارد:
  *  - حامیان = فقط پرداخت‌های واقعی تأییدشده‌ی همین گوشی
- *  - اشتراک = فقط با شماره رسید درگاه آنلاین (دونیتو) فعال می‌شود
+ *  - اشتراک = فقط با شماره رسید درگاه آنلاین (زرین‌پال) فعال می‌شود
  *  - مخازن گیت‌هاب = پیشنهادهای مرجع + مخازنی که خود کاربر اضافه می‌کند
  */
 
@@ -602,4 +602,13 @@ export function recordPayment(rec: Omit<PaymentRecord, 'id'>): PaymentRecord {
 
 export function listPayments(): PaymentRecord[] {
   return [...load().payments].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+/**
+ * پیدا کردن رسید قبلی با شماره پیگیری — برای جلوگیری از ثبت دوباره‌ی یک رسید
+ * (هر شماره پیگیری در هر درگاه فقط یک‌بار قابل استفاده است)
+ */
+export function findPaymentByRef(gateway: 'zarinpal' | 'donito', refId: string): PaymentRecord | null {
+  const target = refId.trim()
+  return load().payments.find((p) => p.gateway === gateway && p.refId.trim() === target) ?? null
 }

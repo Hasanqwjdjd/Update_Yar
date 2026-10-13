@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { Crown, Check, Zap, RefreshCcw, Gauge, Loader2, PartyPopper, ExternalLink, AlertTriangle, ReceiptText } from 'lucide-react'
+import { Crown, Check, Zap, RefreshCcw, Gauge, Loader2, PartyPopper, ExternalLink, AlertTriangle, ReceiptText, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
 import { isPremiumActive } from '@/lib/local-db'
+import { openExternal } from '@/lib/native'
+import { SUPPORT_EMAIL } from '@/lib/config'
 import {
-  startDonitoPayment, confirmDonitoPayment, cancelPendingPayment,
-  getPendingPayment,
+  startPayment, confirmPayment, cancelPendingPayment,
+  getPendingPayment, isDonitoMode,
 } from '@/lib/payment'
 
 const PLANS = [
@@ -49,6 +51,13 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   }, [open, step])
 
+  // تأیید خودکار: وقتی اپ با deep-link از درگاه برگشت، تأیید از API زرین‌پال سمت store انجام می‌شود
+  useEffect(() => {
+    if (paymentDone?.kind === 'premium') {
+      setStep('done')
+    }
+  }, [paymentDone])
+
   const reset = () => {
     onOpenChange(false)
     setTimeout(() => { setStep('plans'); setPayError(null); setRefId('') }, 400)
@@ -57,7 +66,7 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const beginPay = async () => {
     setBusy(true)
     setPayError(null)
-    const res = await startDonitoPayment({
+    const res = await startPayment({
       amountToman: plan.price,
       description: `خرید اشتراک ${plan.label} آپدیت‌یار ویژه`,
       kind: 'premium',
@@ -72,10 +81,11 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   }
 
-  const confirmPay = () => {
+  // تأیید پرداخت — در حالت Donito با شماره‌ی پیگیری رسید، در حالت زرین‌پال با کد Authority
+  const confirmPay = async () => {
     setBusy(true)
     setPayError(null)
-    const r = confirmDonitoPayment(refId)
+    const r = await confirmPayment(refId)
     setBusy(false)
     if (r.ok && r.done) {
       refreshSettings()
@@ -171,11 +181,21 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           <div className="max-h-[60vh] overflow-y-auto px-5 pb-4">
             <div className="mb-3 flex items-start gap-2 rounded-2xl border border-primary/30 bg-primary/10 p-3">
               <ReceiptText className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-[11px] leading-5 text-foreground/80">
-                صفحه‌ی درگاه باز شد. مبلغ <b className="num">{faNumber(plan.price)} تومان</b> را پرداخت کنید
-                («درگاه پرداخت دونیتو»). سپس به این صفحه برگردید و <b>شماره رسید/پیگیری</b> که در درگاه
-                دریافت کردید را در کادر زیر وارد کنید تا اشتراک فوراً فعال شود.
-              </p>
+              {isDonitoMode() ? (
+                <p className="text-[11px] leading-5 text-foreground/80">
+                  صفحه‌ی پرداخت در مرورگر باز شد و مبلغ <b className="num">{faNumber(plan.price)} تومان</b> مستقیماً به
+                  حساب توسعه‌دهنده واریز می‌شود. پس از پرداخت، به اپ برگردید و
+                  <b> شماره‌ی پیگیریِ رسید</b> (در صفحه‌ی پرداخت یا پیامک بانک آمده) را در کادر زیر وارد کنید تا
+                  اشتراک بلافاصله فعال شود.
+                </p>
+              ) : (
+                <p className="text-[11px] leading-5 text-foreground/80">
+                  صفحه‌ی درگاه زرین‌پال باز شد. مبلغ <b className="num">{faNumber(plan.price)} تومان</b> را
+                  پرداخت کنید — پس از پرداخت، با تأیید خودکار API زرین‌پال، اشتراک بلافاصله فعال می‌شود و
+                  نیازی به کار دیگری نیست. فقط اگر بازگشت خودکار به اپ انجام نشد، کد <b>Authority</b> را
+                  از آدرس صفحه‌ی بازگشت کپی و در کادر زیر وارد کنید.
+                </p>
+              )}
             </div>
             <button
               onClick={() => void beginPay()}
@@ -189,7 +209,7 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               inputMode="numeric"
               value={refId}
               onChange={(e) => { setRefId(e.target.value); setPayError(null) }}
-              placeholder="شماره رسید / پیگیری پرداخت"
+              placeholder={isDonitoMode() ? 'شماره پیگیری رسید (از صفحه پرداخت یا پیامک بانک)' : 'کد Authority (فقط در صورت نیاز به ثبت دستی)'}
               dir="ltr"
               className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
             />
@@ -200,13 +220,22 @@ export function PremiumSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               </p>
             )}
             <button
-              onClick={confirmPay}
+              onClick={() => void confirmPay()}
               disabled={busy || refId.trim().length < 4}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-black text-primary-foreground disabled:opacity-50"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              ثبت رسید و فعال‌سازی اشتراک
+              {isDonitoMode() ? 'فعال‌سازی اشتراک با شماره پیگیری' : 'تأیید دستی با کد Authority'}
             </button>
+            {isDonitoMode() && (
+              <button
+                onClick={() => { void openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('استعلام رسید پرداخت آپدیت‌یار')}`) }}
+                className="mt-2 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-2xl text-[11px] font-bold text-muted-foreground"
+              >
+                <Mail className="size-3.5" />
+                رسیدی پیدا نمی‌کنید؟ به {SUPPORT_EMAIL} ایمیل بزنید
+              </button>
+            )}
             <button
               onClick={abandonPayment}
               className="mt-2 min-h-[40px] w-full rounded-2xl text-[12px] font-bold text-muted-foreground"

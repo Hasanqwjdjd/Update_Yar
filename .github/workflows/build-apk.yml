@@ -1,12 +1,8 @@
 name: Build APK (آپدیت‌یار)
 
-# این workflow فایل APK اپلیکیشن آفلاین را روی سرورهای گیت‌هاب می‌سازد
-# بدون نیاز به نصب Android Studio روی سیستم شما!
-
+# ساخت APK آفلاین روی سرورهای گیت‌هاب — بدون نیاز به Android Studio
 on:
-  # اجرای دستی از تب Actions (دکمه Run workflow)
   workflow_dispatch:
-  # اجرای خودکار وقتی فایل‌های اپ تغییر کنند
   push:
     branches: [main]
     paths:
@@ -14,15 +10,14 @@ on:
       - 'public/**'
       - 'android/**'
       - 'capacitor.config.ts'
-      - 'package.json'
       - 'next.config.ts'
+      - 'package.json'
       - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
     name: ساخت APK
     runs-on: ubuntu-latest
-
     steps:
       - name: دریافت کد از مخزن
         uses: actions/checkout@v4
@@ -30,8 +25,13 @@ jobs:
       - name: نصب Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: نصب وابستگی‌های Node
+      - name: نصب وابستگی‌ها
         run: bun install --frozen-lockfile
+
+      # چک TypeScript — با ignoreBuildErrors=false هر خطای تایپ بیلد را می‌شکند
+      # تا باگ‌هایی مثل import گمشده (عامل کرش قبلی) هرگز به APK نرسند
+      - name: چک TypeScript
+        run: bunx tsc --noEmit
 
       - name: ساخت نسخه استاتیک اپ (کاملاً آفلاین)
         run: bun run build
@@ -39,7 +39,7 @@ jobs:
       - name: انتقال اپ به پروژه اندروید
         run: npx cap sync android
 
-      - name: نصب Java 21
+      - name: نصب Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -48,20 +48,20 @@ jobs:
       - name: دسترسی اجرایی به gradlew
         run: chmod +x android/gradlew
 
-      - name: ساخت APK دیباگ (قابل نصب روی هر گوشی)
+      - name: ساخت APK دیباگ
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: ساخت APK نهایی امضادار (Release — برای انتشار در کافه‌بازار/مایکت)
+      - name: ساخت APK نهایی امضادار (Release)
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: آپلود هر دو APK به عنوان خروجی (Artifact)
+      - name: آپلود هر دو APK
         uses: actions/upload-artifact@v4
         with:
           name: updatayar-apk
           path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 90
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: 30

@@ -173,7 +173,7 @@ export function ProfileSheet({
               <ShieldCheck className="size-5 shrink-0 text-primary" />
               <p className="text-[11px] leading-5 text-muted-foreground">
                 آپدیت‌یار هیچ اطلاعات شخصی جمع‌آوری نمی‌کند. پرداخت‌ها فقط از طریق درگاه آنلاین رسمی
-                برنامه (دونیتو) انجام و با شماره رسید فعال می‌شوند.
+                برنامه (زرین‌پال) انجام و با شماره رسید فعال می‌شوند.
               </p>
             </div>
           </div>

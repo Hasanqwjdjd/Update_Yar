@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ErrorBoundary } from "@/components/app/error-boundary";
 
 export const metadata: Metadata = {
   title: "آپدیت‌یار | مدیریت هوشمند آپدیت برنامه‌ها",
@@ -40,8 +41,10 @@ export default function RootLayout({
         {/* فونت وزیرمتن به‌صورت محلی از public/fonts لود می‌شود (globals.css) — آفلاین */}
       </head>
       <body className="antialiased bg-background text-foreground">
-        {children}
-        <Toaster />
+        <ErrorBoundary>
+          {children}
+          <Toaster />
+        </ErrorBoundary>
       </body>
     </html>
   );

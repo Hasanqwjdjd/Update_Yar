@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>بازگشت به آپدیت‌یار...</title>
+<style>
+  body { font-family: sans-serif; background:#0B0F14; color:#fff; display:flex; min-height:100vh;
+         align-items:center; justify-content:center; text-align:center; padding:24px; }
+  a { color:#4f9cff; }
+</style>
+</head>
+<body>
+  <div>
+    <p>در حال بازگشت به اپ آپدیت‌یار...</p>
+    <p>اگر به‌صورت خودکار باز نشد، <a id="manual-link" href="#">اینجا را لمس کنید</a>.</p>
+  </div>
+  <script>
+    // این صفحه فقط یک پل ساده است: پارامترهای بازگشتی زرین‌پال (Authority/Status)
+    // را می‌گیرد و کاربر را به داخل اپ (از طریق deep-link سفارشی) برمی‌گرداند.
+    // هیچ تأییدی اینجا انجام نمی‌شود — تأیید واقعی فقط داخل خود اپ و با تماس مستقیم
+    // با API زرین‌پال انجام می‌شود، پس این صفحه را نمی‌توان برای جعل پرداخت استفاده کرد.
+    var params = new URLSearchParams(window.location.search);
+    var deepLink = 'updatayar://payment?' + params.toString();
+    document.getElementById('manual-link').href = deepLink;
+    window.location.href = deepLink;
+  </script>
+</body>
+</html>

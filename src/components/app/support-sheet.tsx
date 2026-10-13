@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { HeartHandshake, Check, Loader2, PartyPopper, AlertTriangle, ReceiptText, Users, ExternalLink } from 'lucide-react'
+import { HeartHandshake, Check, Loader2, PartyPopper, AlertTriangle, ReceiptText, Users, ExternalLink, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { faDigits, faNumber } from '@/lib/persian'
 import { useAppStore } from '@/lib/store'
 import { listSupporters } from '@/lib/local-db'
+import { openExternal } from '@/lib/native'
+import { SUPPORT_EMAIL } from '@/lib/config'
 import {
-  startDonitoPayment, confirmDonitoPayment, cancelPendingPayment,
-  getPendingPayment,
+  startPayment, confirmPayment, cancelPendingPayment,
+  getPendingPayment, isDonitoMode,
 } from '@/lib/payment'
 import type { SupporterItem } from '@/lib/types'
 
@@ -71,7 +73,7 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
     setBusy(true)
     setPayError(null)
-    const res = await startDonitoPayment({
+    const res = await startPayment({
       amountToman: finalAmount,
       description: 'حمایت مالی از توسعه آپدیت‌یار',
       kind: 'support',
@@ -86,10 +88,11 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
     }
   }
 
-  const confirmPay = () => {
+  // تأیید حمایت — در حالت Donito با شماره‌ی پیگیری رسید، در حالت زرین‌پال با کد Authority
+  const confirmPay = async () => {
     setBusy(true)
     setPayError(null)
-    const r = confirmDonitoPayment(refId)
+    const r = await confirmPayment(refId)
     setBusy(false)
     if (r.ok && r.done) {
       useAppStore.getState().setPaymentDone(r.done)
@@ -173,8 +176,8 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               {busy ? 'در حال باز کردن درگاه...' : `پرداخت ${faNumber(finalAmount)} تومان از طریق درگاه آنلاین`}
             </button>
             <p className="mt-2 text-center text-[10px] leading-4 text-muted-foreground">
-              پرداخت از درگاه رسمی برنامه (دونیتو) انجام و مستقیماً به حساب توسعه‌دهنده واریز می‌شود؛
-              پس از پرداخت، با وارد کردن شماره رسید، نام شما در دیوار حامیان ثبت می‌شود.
+              پرداخت از درگاه آنلاین رسمی برنامه انجام و مستقیماً به حساب توسعه‌دهنده واریز می‌شود؛
+              پس از پرداختِ واقعی، نام شما در دیوار حامیان ثبت می‌شود.
             </p>
 
             {supporters.length > 0 && (
@@ -196,10 +199,20 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
           <div className="max-h-[62vh] overflow-y-auto px-5 pb-4">
             <div className="mb-3 flex items-start gap-2 rounded-2xl border border-primary/30 bg-primary/10 p-3">
               <ReceiptText className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-[11px] leading-5 text-foreground/80">
-                صفحه‌ی درگاه باز شد. مبلغ <b className="num">{faNumber(finalAmount)} تومان</b> را پرداخت کنید،
-                سپس به اینجا برگردید و <b>شماره رسید/پیگیری</b> درگاه را وارد کنید تا حمایت شما ثبت شود.
-              </p>
+              {isDonitoMode() ? (
+                <p className="text-[11px] leading-5 text-foreground/80">
+                  صفحه‌ی پرداخت در مرورگر باز شد و مبلغ <b className="num">{faNumber(finalAmount)} تومان</b> مستقیماً به
+                  حساب توسعه‌دهنده واریز می‌شود. پس از پرداخت، به اپ برگردید و
+                  <b> شماره‌ی پیگیریِ رسید</b> (در صفحه‌ی پرداخت یا پیامک بانک آمده) را در کادر زیر وارد کنید تا
+                  حمایت شما ثبت شود.
+                </p>
+              ) : (
+                <p className="text-[11px] leading-5 text-foreground/80">
+                  صفحه‌ی درگاه زرین‌پال باز شد. مبلغ <b className="num">{faNumber(finalAmount)} تومان</b> را
+                  پرداخت کنید — با تأیید خودکار API زرین‌پال، حمایت شما بلافاصله ثبت می‌شود. فقط اگر بازگشت
+                  خودکار به اپ انجام نشد، کد <b>Authority</b> را از آدرس صفحه‌ی بازگشت کپی و پایین وارد کنید.
+                </p>
+              )}
             </div>
             <button
               onClick={() => void pay()}
@@ -213,7 +226,7 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               inputMode="numeric"
               value={refId}
               onChange={(e) => { setRefId(e.target.value); setPayError(null) }}
-              placeholder="شماره رسید / پیگیری پرداخت"
+              placeholder={isDonitoMode() ? 'شماره پیگیری رسید (از صفحه پرداخت یا پیامک بانک)' : 'کد Authority (فقط در صورت نیاز به ثبت دستی)'}
               dir="ltr"
               className="w-full rounded-2xl border border-border bg-background/60 px-4 py-3 text-left text-[13px] outline-none focus:ring-2 focus:ring-primary/40"
             />
@@ -224,13 +237,22 @@ export function SupportSheet({ open, onOpenChange }: { open: boolean; onOpenChan
               </p>
             )}
             <button
-              onClick={confirmPay}
+              onClick={() => void confirmPay()}
               disabled={busy || refId.trim().length < 4}
               className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-black text-primary-foreground disabled:opacity-50"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              ثبت رسید و درج در دیوار حامیان
+              {isDonitoMode() ? 'ثبت حمایت با شماره پیگیری' : 'تأیید دستی با کد Authority'}
             </button>
+            {isDonitoMode() && (
+              <button
+                onClick={() => { void openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('استعلام رسید حمایت آپدیت‌یار')}`) }}
+                className="mt-2 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-2xl text-[11px] font-bold text-muted-foreground"
+              >
+                <Mail className="size-3.5" />
+                رسیدی پیدا نمی‌کنید؟ به {SUPPORT_EMAIL} ایمیل بزنید
+              </button>
+            )}
             <button
               onClick={abandonPayment}
               className="mt-2 min-h-[40px] w-full rounded-2xl text-[12px] font-bold text-muted-foreground"

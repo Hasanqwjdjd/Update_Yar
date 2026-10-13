@@ -59,9 +59,11 @@ export interface PaymentRecord {
   kind: 'premium' | 'support'
   plan?: string
   amountToman: number
-  /** شماره رسید/پیگیری که کاربر از صفحه درگاه وارد می‌کند */
+  /** شماره پیگیری واقعی: ref_id زرین‌پال یا شماره رسید درگاه شخصی (Donito) */
   refId: string
-  gateway: 'donito'
+  gateway: 'zarinpal' | 'donito'
+  /** Authority تراکنش زرین‌پال — در حالت Donito وجود ندارد (null) */
+  authority: string | null
   date: string
 }
 
